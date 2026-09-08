@@ -33,6 +33,7 @@ export const es: LocaleStrings = {
     sectionBuilds: 'Builds',
     sectionTickets: 'Tickets',
     fieldLocale: 'Idioma',
+    fieldSecondLocale: 'Segundo idioma',
     fieldGameName: 'Nombre del juego',
     fieldAccentColor: 'Color de acento',
     fieldWelcomeEnabled: 'Tarjeta de bienvenida',
@@ -61,6 +62,7 @@ export const es: LocaleStrings = {
   },
 
   announce: {
+    noContent: 'No hay nada para publicar: no se escribió texto en ninguno de los idiomas del servidor.',
     posted: 'Publicado en {channel}.',
     announcementFooter: 'Anuncio',
     devlogFooter: 'Devlog',

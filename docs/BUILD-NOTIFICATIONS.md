@@ -70,7 +70,9 @@ Content-Type: application/json
   "version":   "0.4.2",               // required
   "channel":   "beta",                // default "stable"
   "platforms": "Windows, Linux",
-  "notes":     "- Fixed the map crash\n- New tutorial",
+  "notes":     "- Fixed the map crash\n- New tutorial",   // primary language
+  "notesEn":   "- Fixed the map crash",                  // optional, per language
+  "notesEs":   "- Arreglado el crash del mapa",          // optional, per language
   "url":       "https://store.steampowered.com/app/...",
   "source":    "github",              // shown in the embed footer
   "force":     false                  // re-announce a version already posted
@@ -78,6 +80,8 @@ Content-Type: application/json
 ```
 
 `Authorization: Bearer <secret>` works too, if that fits your CI better.
+
+**Bilingual servers.** Send `notesEn` and `notesEs` and the announcement gets one block per language, in the order the server publishes in. Each overrides `notes` for its own language; a language with no changelog simply gets no block, so a pipeline that only ever sends `notes` keeps working exactly as before.
 
 | Status | Meaning |
 |---|---|

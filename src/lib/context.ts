@@ -7,21 +7,73 @@ import {
   type PermissionResolvable,
 } from 'discord.js';
 import { getGuildConfig, type GuildConfig } from '../config/guild.js';
-import { translator, type Translate } from '../i18n/index.js';
+import { LOCALE_LABELS, localeFromDiscord, translator, type Locale, type Translate } from '../i18n/index.js';
 import { parseHexColor } from './text.js';
 
 const FALLBACK_COLOR = 0x5865f2;
 
 export interface GuildContext {
   readonly config: GuildConfig;
-  /** Translator already bound to this guild's locale. */
+  /** Translator bound to a locale. Which one depends on how you got this. */
+  readonly s: Translate;
+  /** The locale `s` is bound to. */
+  readonly locale: Locale;
+}
+
+/**
+ * Context bound to the server's **primary** language.
+ *
+ * Use this for anything the whole server sees. For a reply only one person
+ * sees, prefer `contextForUser` — in a bilingual community, showing someone an
+ * error in a language they do not read is a bad default.
+ */
+export function contextFor(guildId: string): GuildContext {
+  const config = getGuildConfig(guildId);
+  return { config, s: translator(config.locale), locale: config.locale };
+}
+
+/**
+ * Context bound to the **viewer's own** language.
+ *
+ * Discord tells us the language each user has their client set to, so an
+ * ephemeral reply can be in their language with no configuration at all. We
+ * only honour it when it is a language this bot actually speaks; otherwise we
+ * fall back to the server's primary rather than silently defaulting to English.
+ */
+export function contextForUser(guildId: string, discordLocale: string | null | undefined): GuildContext {
+  const config = getGuildConfig(guildId);
+  const locale = localeFromDiscord(discordLocale) ?? config.locale;
+  return { config, s: translator(locale), locale };
+}
+
+/**
+ * The languages a public post should be rendered in: the primary, plus the
+ * secondary when one is configured and different.
+ */
+export function publicLocales(config: GuildConfig): Locale[] {
+  return config.secondaryLocale && config.secondaryLocale !== config.locale
+    ? [config.locale, config.secondaryLocale]
+    : [config.locale];
+}
+
+export interface LocaleRenderer {
+  readonly locale: Locale;
+  /** The language's name in its own language, e.g. `ESPAÑOL`. */
+  readonly label: string;
   readonly s: Translate;
 }
 
-/** Loads config + translator for a guild. Cheap: config reads are cached. */
-export function contextFor(guildId: string): GuildContext {
-  const config = getGuildConfig(guildId);
-  return { config, s: translator(config.locale) };
+/**
+ * One renderer per public language, in display order. Callers that build
+ * public content map over this instead of branching on "is it bilingual" —
+ * a monolingual server is just the one-element case.
+ */
+export function localeRenderers(config: GuildConfig): LocaleRenderer[] {
+  return publicLocales(config).map((locale) => ({
+    locale,
+    label: LOCALE_LABELS[locale],
+    s: translator(locale),
+  }));
 }
 
 /** An embed pre-tinted with the guild's accent color. */

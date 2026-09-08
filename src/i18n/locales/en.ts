@@ -33,6 +33,7 @@ export const en = {
     sectionBuilds: 'Builds',
     sectionTickets: 'Tickets',
     fieldLocale: 'Language',
+    fieldSecondLocale: 'Second language',
     fieldGameName: 'Game name',
     fieldAccentColor: 'Accent color',
     fieldWelcomeEnabled: 'Welcome card',
@@ -60,6 +61,7 @@ export const en = {
   },
 
   announce: {
+    noContent: 'Nothing to post — no text was provided for any of this server’s languages.',
     posted: 'Posted in {channel}.',
     announcementFooter: 'Announcement',
     devlogFooter: 'Devlog',

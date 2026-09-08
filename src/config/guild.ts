@@ -1,6 +1,6 @@
 import { db, queryOne, queryOneRequired } from '../db/index.js';
 import { env } from './env.js';
-import type { Locale } from '../i18n/index.js';
+import { isLocale, type Locale } from '../i18n/index.js';
 
 /**
  * Per-guild settings. This is what makes the bot reusable: nothing about a
@@ -9,7 +9,13 @@ import type { Locale } from '../i18n/index.js';
  */
 export interface GuildConfig {
   guildId: string;
+  /** The server's primary public language. */
   locale: Locale;
+  /**
+   * Optional second public language. When set, everything the whole server
+   * sees is rendered in both, `locale` first. NULL means monolingual.
+   */
+  secondaryLocale: Locale | null;
 
   welcomeEnabled: boolean;
   welcomeChannelId: string | null;
@@ -35,6 +41,7 @@ export interface GuildConfig {
 interface GuildConfigRow {
   guild_id: string;
   locale: string;
+  secondary_locale: string | null;
   welcome_enabled: number;
   welcome_channel_id: string | null;
   welcome_role_id: string | null;
@@ -57,6 +64,7 @@ interface GuildConfigRow {
  */
 const COLUMNS = {
   locale: 'locale',
+  secondaryLocale: 'secondary_locale',
   welcomeEnabled: 'welcome_enabled',
   welcomeChannelId: 'welcome_channel_id',
   welcomeRoleId: 'welcome_role_id',
@@ -73,10 +81,16 @@ const COLUMNS = {
 
 export type EditableField = keyof typeof COLUMNS;
 
+/** Narrows a raw column value to a Locale, or null if it is not one we speak. */
+function toLocale(value: string | null): Locale | null {
+  return value !== null && isLocale(value) ? value : null;
+}
+
 function toConfig(row: GuildConfigRow): GuildConfig {
   return {
     guildId: row.guild_id,
-    locale: (row.locale === 'es' ? 'es' : 'en') as Locale,
+    locale: toLocale(row.locale) ?? 'en',
+    secondaryLocale: toLocale(row.secondary_locale),
     welcomeEnabled: row.welcome_enabled === 1,
     welcomeChannelId: row.welcome_channel_id,
     welcomeRoleId: row.welcome_role_id,

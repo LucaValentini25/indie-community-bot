@@ -71,9 +71,20 @@ In Discord, as someone with **Manage Server**:
 ```
 /config channels welcome:#welcome announcements:#announcements devlogs:#devlog builds:#builds bugs:#bug-reports
 /config roles join:@Member builds:@Build Notifications staff:@Team
-/config general language:Español game_name:"Your Game" accent_color:#FF5C00
+/config general language:Español second_language:English game_name:"Your Game" accent_color:#FF5C00
 /config check
 ```
+
+### Running a bilingual server
+
+`second_language` is what makes the server bilingual. With it set, **everything the whole server sees is published in both languages**: announcements and devlogs get one embed per language in a single message, the bug panel shows both, and the welcome message greets in both. The primary `language` always comes first.
+
+Two things happen automatically and need no configuration:
+
+- **Replies only you see are in *your* language.** Discord tells the bot which language each person has their client set to, so `/config check`, confirmations and errors come back in Spanish for a Spanish client and English for an English one, regardless of the server setting.
+- **A bug thread speaks the reporter's language.** The report form, the embed and its buttons render in whatever language the person who opened it uses.
+
+To post in one language only, pass `language:` to `/announce` or `/devlog`. To go back to monolingual: `/config reset setting:Second language`.
 
 `/config check` walks every channel and role and reports what the bot can actually do. It is the first thing to run when something is not posting — a missing permission shows up as a red line instead of silence.
 

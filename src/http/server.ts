@@ -16,7 +16,12 @@ const buildPayload = z.object({
   version: z.string().min(1).max(60),
   channel: z.string().max(40).optional(),
   platforms: z.string().max(200).optional(),
+  // Changelog for the server's primary language — the simple case.
   notes: z.string().max(3800).optional(),
+  // Per-language changelog. Either or both; each overrides `notes` for its
+  // language, so a bilingual server gets a bilingual announcement.
+  notesEn: z.string().max(3800).optional(),
+  notesEs: z.string().max(3800).optional(),
   url: z.url().optional(),
   source: z.string().max(40).optional(),
   force: z.boolean().optional(),
@@ -107,8 +112,11 @@ async function handleBuildHook(
     return;
   }
 
+  const { notesEn, notesEs, ...build } = parsed.data;
+
   const result = await announceBuild(client, {
-    ...parsed.data,
+    ...build,
+    notesByLocale: { ...(notesEn ? { en: notesEn } : {}), ...(notesEs ? { es: notesEs } : {}) },
     source: parsed.data.source ?? 'ci',
   });
 

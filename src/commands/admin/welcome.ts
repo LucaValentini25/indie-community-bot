@@ -7,7 +7,7 @@ import {
   type GuildTextBasedChannel,
 } from 'discord.js';
 import { sendWelcome } from '../../features/welcome/index.js';
-import { contextFor } from '../../lib/context.js';
+import { contextForUser } from '../../lib/context.js';
 import type { Command } from '../../core/types.js';
 
 const command: Command = {
@@ -28,7 +28,7 @@ const command: Command = {
     ),
 
   async execute(interaction) {
-    const { s } = contextFor(interaction.guildId!);
+    const { s } = contextForUser(interaction.guildId!, interaction.locale);
 
     await interaction.deferReply({ flags: MessageFlags.Ephemeral });
 

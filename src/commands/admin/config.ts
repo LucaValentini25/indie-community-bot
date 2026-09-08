@@ -7,7 +7,7 @@ import {
   type Guild,
 } from 'discord.js';
 import { forgetGuildConfig, updateGuildConfig, type GuildConfig } from '../../config/guild.js';
-import { brandedEmbed, contextFor, resolveSendableChannel } from '../../lib/context.js';
+import { brandedEmbed, contextForUser, resolveSendableChannel } from '../../lib/context.js';
 import { isLocale, type Translate } from '../../i18n/index.js';
 import { parseHexColor } from '../../lib/text.js';
 import type { Command } from '../../core/types.js';
@@ -99,6 +99,15 @@ const command: Command = {
             .addChoices({ name: 'English', value: 'en' }, { name: 'Español', value: 'es' }),
         )
         .addStringOption((option) =>
+          option
+            .setName('second_language')
+            .setDescription('Also publish everything public in this language')
+            .setDescriptionLocalizations({
+              'es-ES': 'Publicar además todo lo público en este idioma',
+            })
+            .addChoices({ name: 'English', value: 'en' }, { name: 'Español', value: 'es' }),
+        )
+        .addStringOption((option) =>
           option.setName('game_name').setDescription('Shown on cards and embeds').setMaxLength(60),
         )
         .addStringOption((option) =>
@@ -128,13 +137,15 @@ const command: Command = {
               { name: 'Bug channel', value: 'ticketChannelId' },
               { name: 'Staff role', value: 'ticketStaffRoleId' },
               { name: 'Game name', value: 'gameName' },
+              { name: 'Second language', value: 'secondaryLocale' },
             ),
         ),
     ),
 
   async execute(interaction) {
     const guild = interaction.guild!;
-    const { config, s } = contextFor(guild.id);
+    // /config only ever replies ephemerally, so it speaks the admin's language.
+    const { config, s } = contextForUser(guild.id, interaction.locale);
     const subcommand = interaction.options.getSubcommand();
 
     if (subcommand === 'view') {
@@ -196,6 +207,11 @@ const command: Command = {
     if (subcommand === 'general') {
       const language = interaction.options.getString('language');
       if (language && isLocale(language)) collect(patch, changed, 'locale', language, 'Language');
+
+      const second = interaction.options.getString('second_language');
+      if (second && isLocale(second)) {
+        collect(patch, changed, 'secondaryLocale', second, 'Second language');
+      }
 
       collect(
         patch,
@@ -266,6 +282,7 @@ function configEmbed(config: GuildConfig, guildName: string, s: Translate) {
         name: s('config.sectionGeneral'),
         value: [
           `**${s('config.fieldLocale')}:** \`${config.locale}\``,
+          `**${s('config.fieldSecondLocale')}:** ${config.secondaryLocale ? `\`${config.secondaryLocale}\`` : s('common.none')}`,
           `**${s('config.fieldGameName')}:** ${config.gameName ?? s('common.notSet')}`,
           `**${s('config.fieldAccentColor')}:** \`${config.accentColor}\``,
         ].join('\n'),

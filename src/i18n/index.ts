@@ -21,6 +21,32 @@ export function isLocale(value: string): value is Locale {
 }
 
 /**
+ * How each language names itself. Used as the heading of each block in a
+ * bilingual post.
+ *
+ * Deliberately no flag emoji: 🇪🇸 reads as "Spain" to a Latin American
+ * audience and 🇬🇧/🇺🇸 forces a pick between them. A language is not a country.
+ */
+export const LOCALE_LABELS: Record<Locale, string> = {
+  en: 'ENGLISH',
+  es: 'ESPAÑOL',
+};
+
+/**
+ * Maps a Discord client locale to one of ours.
+ *
+ * Discord sends BCP-47-ish tags — `es-ES`, `es-419`, `en-US`, `en-GB`. We only
+ * care about the language subtag; regional variants collapse together.
+ * Anything we do not speak returns null so the caller can fall back to the
+ * server's language rather than silently defaulting to English.
+ */
+export function localeFromDiscord(discordLocale: string | null | undefined): Locale | null {
+  if (!discordLocale) return null;
+  const language = discordLocale.split('-')[0]?.toLowerCase();
+  return language && isLocale(language) ? language : null;
+}
+
+/**
  * Looks up a translation and fills `{placeholders}`.
  *
  * Falls back to English when a key is missing from a locale, and returns the

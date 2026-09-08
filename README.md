@@ -18,7 +18,7 @@ Node 24 · TypeScript · discord.js v14 · SQLite (node:sqlite) · Docker
 | 📣 **Announcements & devlogs** | `/announce` and `/devlog` open a modal — real paragraphs, not a cramped option box. Devlogs are numbered automatically. |
 | 🚀 **Build notifications** | `/build announce` by hand, or `POST /hooks/build` from GitHub Actions / Steam CI. Both take the same path, so they look identical. Duplicate announcements are refused, so a re-run is a no-op. |
 | 🐛 **Bug reports** | A panel with a button → a modal → a **private thread** per report. Claim, close with a resolution, reopen. Numbered per server. |
-| 🌍 **English + Spanish** | Set per server with `/config general language:`. Locales are type-checked against each other, so a missing translation is a compile error. |
+| 🌍 **Bilingual** | Set a primary and a second language per server. Public posts render in both — one message, one embed per language. Replies only one person sees follow *their* Discord language automatically. Locales are type-checked against each other, so a missing translation is a compile error. |
 | ♻️ **Multi-server** | No hardcoded IDs. Reuse the same deployment for the next game. |
 
 ## Quick start
@@ -36,7 +36,7 @@ Then, in your server:
 
 ```
 /config channels welcome:#welcome announcements:#news builds:#builds bugs:#bugs
-/config general language:Español game_name:"Your Game" accent_color:#FF5C00
+/config general language:Español second_language:English game_name:"Your Game" accent_color:#FF5C00
 /config check
 /bug panel
 ```

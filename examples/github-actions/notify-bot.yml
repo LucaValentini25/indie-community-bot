@@ -51,6 +51,10 @@ jobs:
           VERSION: ${{ github.event.inputs.version || github.event.release.tag_name }}
           CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
           NOTES: ${{ github.event.inputs.notes || github.event.release.body }}
+          # Optional: a changelog per language. Each overrides NOTES for its own
+          # language, so a bilingual server gets a bilingual announcement.
+          NOTES_EN: ''
+          NOTES_ES: ''
           URL: ${{ github.event.release.html_url }}
           PLATFORMS: Windows, Linux
         run: |
@@ -65,10 +69,14 @@ jobs:
             --arg notes     "$NOTES" \
             --arg url       "$URL" \
             --arg platforms "$PLATFORMS" \
+            --arg notesEn   "$NOTES_EN" \
+            --arg notesEs   "$NOTES_ES" \
             '{guildId: $guildId, version: $version, channel: $channel, source: "github"}
               + (if $notes     == "" then {} else {notes: $notes}         end)
               + (if $url       == "" then {} else {url: $url}             end)
-              + (if $platforms == "" then {} else {platforms: $platforms} end)')
+              + (if $platforms == "" then {} else {platforms: $platforms} end)
+              + (if $notesEn   == "" then {} else {notesEn: $notesEn}     end)
+              + (if $notesEs   == "" then {} else {notesEs: $notesEs}     end)')
 
           echo "Announcing $VERSION on channel $CHANNEL"
 

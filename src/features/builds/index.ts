@@ -3,11 +3,14 @@ import { db, queryAll, queryOne } from '../../db/index.js';
 import {
   brandedEmbed,
   contextFor,
+  contextForUser,
   describeChannelFailure,
+  localeRenderers,
   resolveSendableChannel,
 } from '../../lib/context.js';
 import { createLogger } from '../../core/logger.js';
 import { isHttpUrl, truncate } from '../../lib/text.js';
+import { isLocale, type Locale } from '../../i18n/index.js';
 
 const log = createLogger('builds');
 
@@ -17,12 +20,17 @@ export interface BuildRecord {
   version: string;
   channel: string;
   platforms: string | null;
+  /** Primary-language changelog. Kept for rows written before notes_i18n. */
   notes: string | null;
+  /** JSON object keyed by locale, e.g. `{"en":"…","es":"…"}`. */
+  notes_i18n: string | null;
   url: string | null;
   source: string;
   message_id: string | null;
   created_at: number;
 }
+
+export type LocalizedNotes = Partial<Record<Locale, string>>;
 
 export interface AnnounceBuildInput {
   guildId: string;
@@ -32,14 +40,27 @@ export interface AnnounceBuildInput {
   channel?: string;
   /** Free text, e.g. `Windows, Linux, Steam Deck`. */
   platforms?: string | null;
-  /** Changelog. Markdown is fine. */
+  /**
+   * Changelog for the server's primary language. The simple case, and what CI
+   * that does not care about localisation keeps sending.
+   */
   notes?: string | null;
+  /**
+   * Per-language changelog. Takes precedence over `notes` for any language it
+   * covers, so a pipeline can send `{en, es}` and get a bilingual post.
+   */
+  notesByLocale?: LocalizedNotes;
   /** Link to the release / store page / build artifact. */
   url?: string | null;
   /** Where the announcement came from: `manual`, `github`, `steam`, … */
   source?: string;
   /** Skips the duplicate check. Used by `/build announce --force`. */
   force?: boolean;
+  /**
+   * Locale of the person who triggered this, when there is one. Only affects
+   * the failure message they get back; CI leaves it unset.
+   */
+  viewerLocale?: string | null;
 }
 
 export type AnnounceBuildResult =
@@ -62,7 +83,9 @@ export async function announceBuild(client: Client, input: AnnounceBuildInput): 
   const guild = await client.guilds.fetch(input.guildId).catch(() => null);
   if (!guild) return { ok: false, reason: 'guild-unavailable' };
 
-  const { config, s } = contextFor(input.guildId);
+  const { config } = contextFor(input.guildId);
+  // Errors go back to whoever asked; the announcement itself does not.
+  const { s } = contextForUser(input.guildId, input.viewerLocale);
 
   // CI retries and re-runs are common; without this a re-run would double-post.
   if (!input.force && findBuild(input.guildId, input.version, channelName)) {
@@ -74,23 +97,54 @@ export async function announceBuild(client: Client, input: AnnounceBuildInput): 
     return { ok: false, reason: 'channel', message: describeChannelFailure(lookup, s) };
   }
 
-  const embed = brandedEmbed(config)
-    .setAuthor({ name: s('build.newBuild') })
-    .setTitle(
-      config.gameName
-        ? s('build.titleWithGame', { game: config.gameName, version: input.version })
-        : s('build.titleWithoutGame', { version: input.version }),
-    )
-    .setTimestamp(new Date());
+  // `notes` fills in for the primary language only. A secondary language with
+  // no changelog of its own gets no block rather than an English one.
+  const notes: LocalizedNotes = { ...input.notesByLocale };
+  if (input.notes?.trim() && !notes[config.locale]) notes[config.locale] = input.notes.trim();
 
-  if (input.url && isHttpUrl(input.url)) embed.setURL(input.url);
-  if (input.notes?.trim()) embed.setDescription(truncate(input.notes.trim(), 4000));
+  const renderers = localeRenderers(config);
+  // The first language always gets a block — it carries the title and metadata
+  // even when there is no changelog. The rest earn theirs by having text.
+  const blocks = renderers.filter((renderer, index) => index === 0 || notes[renderer.locale]?.trim());
+  const bilingual = blocks.length > 1;
 
-  embed.addFields({ name: s('build.fieldChannel'), value: `\`${channelName}\``, inline: true });
-  if (input.platforms?.trim()) {
-    embed.addFields({ name: s('build.fieldPlatforms'), value: input.platforms.trim(), inline: true });
-  }
-  embed.setFooter({ text: s('build.footerSource', { source }) });
+  const embeds = blocks.map((renderer, index) => {
+    const isFirst = index === 0;
+    const isLast = index === blocks.length - 1;
+
+    const embed = brandedEmbed(config).setAuthor({
+      name: bilingual ? `${renderer.label} · ${renderer.s('build.newBuild')}` : renderer.s('build.newBuild'),
+    });
+
+    // The title is the game name and a version number — identical in every
+    // language, so repeating it per block would just be noise.
+    if (isFirst) {
+      embed.setTitle(
+        config.gameName
+          ? renderer.s('build.titleWithGame', { game: config.gameName, version: input.version })
+          : renderer.s('build.titleWithoutGame', { version: input.version }),
+      );
+      if (input.url && isHttpUrl(input.url)) embed.setURL(input.url);
+    }
+
+    const body = notes[renderer.locale]?.trim();
+    if (body) embed.setDescription(truncate(body, 4000));
+
+    // Metadata once, at the bottom of the message.
+    if (isLast) {
+      embed.addFields({ name: renderer.s('build.fieldChannel'), value: `\`${channelName}\``, inline: true });
+      if (input.platforms?.trim()) {
+        embed.addFields({
+          name: renderer.s('build.fieldPlatforms'),
+          value: input.platforms.trim(),
+          inline: true,
+        });
+      }
+      embed.setFooter({ text: renderer.s('build.footerSource', { source }) }).setTimestamp(new Date());
+    }
+
+    return embed;
+  });
 
   const components = [];
   if (input.url && isHttpUrl(input.url)) {
@@ -103,7 +157,7 @@ export async function announceBuild(client: Client, input: AnnounceBuildInput): 
 
   const message = await lookup.channel.send({
     content: config.buildRoleId ? `<@&${config.buildRoleId}>` : undefined,
-    embeds: [embed],
+    embeds,
     components,
     // Explicit allowlist: the role ping is intentional, everything else in the
     // changelog text (@everyone, stray @mentions) must stay inert.
@@ -115,15 +169,53 @@ export async function announceBuild(client: Client, input: AnnounceBuildInput): 
     version: input.version,
     channel: channelName,
     platforms: input.platforms ?? null,
-    notes: input.notes ?? null,
+    notes: notes[config.locale] ?? null,
+    notesI18n: Object.keys(notes).length > 0 ? JSON.stringify(notes) : null,
     url: input.url ?? null,
     source,
     messageId: message.id,
   });
 
-  log.info({ guild: input.guildId, version: input.version, channel: channelName, source }, 'build announced');
+  log.info(
+    {
+      guild: input.guildId,
+      version: input.version,
+      channel: channelName,
+      source,
+      locales: blocks.map((renderer) => renderer.locale),
+    },
+    'build announced',
+  );
 
   return { ok: true, channelId: lookup.channel.id, messageId: message.id };
+}
+
+/**
+ * Reads a stored changelog back in the requested language, falling back to the
+ * primary-language copy. Used by `/build latest`, which is ephemeral and so
+ * renders in the *viewer's* language.
+ */
+export function notesForLocale(build: BuildRecord, locale: Locale): string | null {
+  if (build.notes_i18n) {
+    try {
+      const parsed = JSON.parse(build.notes_i18n) as Record<string, unknown>;
+      const value = parsed[locale];
+      if (typeof value === 'string' && value.trim()) return value;
+    } catch {
+      // A malformed blob is not worth failing a command over.
+    }
+  }
+  return build.notes;
+}
+
+/** All languages a stored build has a changelog for. */
+export function notesLocales(build: BuildRecord): Locale[] {
+  if (!build.notes_i18n) return [];
+  try {
+    return Object.keys(JSON.parse(build.notes_i18n) as Record<string, unknown>).filter(isLocale);
+  } catch {
+    return [];
+  }
 }
 
 function findBuild(guildId: string, version: string, channel: string): BuildRecord | undefined {
@@ -141,16 +233,18 @@ function recordBuild(input: {
   channel: string;
   platforms: string | null;
   notes: string | null;
+  notesI18n: string | null;
   url: string | null;
   source: string;
   messageId: string;
 }): void {
   db.prepare(
-    `INSERT INTO builds (guild_id, version, channel, platforms, notes, url, source, message_id, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `INSERT INTO builds (guild_id, version, channel, platforms, notes, notes_i18n, url, source, message_id, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT (guild_id, version, channel) DO UPDATE SET
        platforms = excluded.platforms,
        notes = excluded.notes,
+       notes_i18n = excluded.notes_i18n,
        url = excluded.url,
        source = excluded.source,
        message_id = excluded.message_id,
@@ -161,6 +255,7 @@ function recordBuild(input: {
     input.channel,
     input.platforms,
     input.notes,
+    input.notesI18n,
     input.url,
     input.source,
     input.messageId,

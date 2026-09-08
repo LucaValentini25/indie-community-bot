@@ -24,6 +24,7 @@ The base is built and runs. This is what exists, what is left to do to get it li
 - **Builds** — `/build announce`, `/build latest`, `/build list`, plus `POST /hooks/build` for CI, with duplicate suppression
 - **Bug reports** — panel → modal → private thread, claim / close-with-resolution / reopen, `/bug list`, `/bug stats`
 - **`/config check`** — verifies every channel, role and permission
+- **Bilingual publishing** — a second public language per server: announcements, devlogs, the bug panel and the welcome message render in both, one embed per language in a single message. Ephemeral replies follow each viewer's own Discord language, and a bug thread follows the reporter's
 
 ## Phase 2 — Go live ⬜ next
 

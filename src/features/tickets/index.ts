@@ -17,15 +17,16 @@ import {
   type GuildTextBasedChannel,
 } from 'discord.js';
 import {
-  contextFor,
   brandedEmbed,
+  contextForUser,
   describeChannelFailure,
+  localeRenderers,
   resolveSendableChannel,
 } from '../../lib/context.js';
 import { nextTicketNumber, type GuildConfig } from '../../config/guild.js';
 import { createLogger } from '../../core/logger.js';
 import { slugify, truncate } from '../../lib/text.js';
-import type { Translate, TranslationKey } from '../../i18n/index.js';
+import { isLocale, translator, type Translate, type TranslationKey } from '../../i18n/index.js';
 import {
   claimTicket,
   closeTicket,
@@ -81,26 +82,47 @@ const STATUS_LABEL_KEYS = {
 // ─────────────────────────────────────────────────────────────
 
 /** The always-on message with the "Report a bug" button. */
-export function buildPanel(
-  config: GuildConfig,
-  s: Translate,
-): {
+/**
+ * The always-on message with the "Report a bug" button.
+ *
+ * In a bilingual server this is one message with one embed per language: the
+ * panel is instructions, and instructions nobody can read are worse than none.
+ * The button carries one label for both, because a component has only one.
+ */
+export function buildPanel(config: GuildConfig): {
   embeds: EmbedBuilder[];
   components: ActionRowBuilder<ButtonBuilder>[];
 } {
-  const embed = brandedEmbed(config)
-    .setTitle(s('ticket.panelTitle'))
-    .setDescription(s('ticket.panelDescription'));
+  const renderers = localeRenderers(config);
+  const bilingual = renderers.length > 1;
+
+  const embeds = renderers.map((renderer) => {
+    const embed = brandedEmbed(config)
+      .setTitle(renderer.s('ticket.panelTitle'))
+      .setDescription(renderer.s('ticket.panelDescription'));
+    if (bilingual) embed.setAuthor({ name: renderer.label });
+    return embed;
+  });
+
+  const label = truncate(renderers.map((renderer) => renderer.s('ticket.panelButton')).join(' · '), 80);
 
   const row = new ActionRowBuilder<ButtonBuilder>().addComponents(
     new ButtonBuilder()
       .setCustomId(TicketIds.openButton)
       .setStyle(ButtonStyle.Primary)
-      .setLabel(s('ticket.panelButton'))
+      .setLabel(label)
       .setEmoji('🐛'),
   );
 
-  return { embeds: [embed], components: [row] };
+  return { embeds, components: [row] };
+}
+
+/**
+ * A bug thread is a conversation with one person, so it renders in the
+ * language they filed it in — not the server's primary.
+ */
+export function ticketTranslator(ticket: Ticket, config: GuildConfig): Translate {
+  return translator(ticket.locale && isLocale(ticket.locale) ? ticket.locale : config.locale);
 }
 
 // ─────────────────────────────────────────────────────────────
@@ -108,7 +130,8 @@ export function buildPanel(
 // ─────────────────────────────────────────────────────────────
 
 export async function showReportModal(interaction: ButtonInteraction): Promise<void> {
-  const { s } = contextFor(interaction.guildId!);
+  // The form is for one person; show it in their language.
+  const { s } = contextForUser(interaction.guildId!, interaction.locale);
 
   const modal = new ModalBuilder().setCustomId(TicketIds.modal).setTitle(s('ticket.modalTitle'));
 
@@ -158,7 +181,7 @@ function row(input: TextInputBuilder): ActionRowBuilder<TextInputBuilder> {
 
 export async function handleReportSubmit(interaction: ModalSubmitInteraction): Promise<void> {
   if (!interaction.guild) return;
-  const { config, s } = contextFor(interaction.guild.id);
+  const { config, s, locale } = contextForUser(interaction.guild.id, interaction.locale);
 
   // Creating a thread and posting into it takes longer than the 3s interaction
   // window, so acknowledge first.
@@ -211,6 +234,7 @@ export async function handleReportSubmit(interaction: ModalSubmitInteraction): P
       body: details,
       platform,
       buildVersion: version,
+      locale,
     });
 
     await thread.members.add(interaction.user.id).catch(() => null);
@@ -334,7 +358,7 @@ export function isStaff(member: GuildMember | null, config: GuildConfig): boolea
 }
 
 export async function handleClaim(interaction: ButtonInteraction, ticketId: number): Promise<void> {
-  const { config, s } = contextFor(interaction.guildId!);
+  const { config, s } = contextForUser(interaction.guildId!, interaction.locale);
   const member = interaction.member as GuildMember | null;
 
   if (!isStaff(member, config)) {
@@ -345,16 +369,17 @@ export async function handleClaim(interaction: ButtonInteraction, ticketId: numb
   const ticket = claimTicket(ticketId);
   if (!ticket) return;
 
+  const ts = ticketTranslator(ticket, config);
   await interaction.update({
-    embeds: [ticketEmbed(ticket, config, s)],
-    components: ticketComponents(ticket, s),
+    embeds: [ticketEmbed(ticket, config, ts)],
+    components: ticketComponents(ticket, ts),
   });
   await interaction.followUp({ content: s('ticket.claimed', { user: `<@${interaction.user.id}>` }) });
 }
 
 /** The Close button opens an ephemeral picker so a resolution is always recorded. */
 export async function handleCloseRequest(interaction: ButtonInteraction, ticketId: number): Promise<void> {
-  const { config, s } = contextFor(interaction.guildId!);
+  const { config, s } = contextForUser(interaction.guildId!, interaction.locale);
   const ticket = ticketById(ticketId);
   if (!ticket) return;
 
@@ -395,7 +420,7 @@ export async function handleResolve(
   interaction: StringSelectMenuInteraction,
   ticketId: number,
 ): Promise<void> {
-  const { config, s } = contextFor(interaction.guildId!);
+  const { config, s } = contextForUser(interaction.guildId!, interaction.locale);
   const resolution = interaction.values[0] as TicketResolution;
 
   const ticket = closeTicket(ticketId, resolution, interaction.user.id);
@@ -409,7 +434,7 @@ export async function handleResolve(
     components: [],
   });
 
-  await refreshTicketMessage(interaction, ticket, config, s);
+  await refreshTicketMessage(interaction, ticket, config);
 
   const thread = interaction.channel;
   if (thread?.isThread()) {
@@ -430,7 +455,7 @@ export async function handleResolve(
 }
 
 export async function handleReopen(interaction: ButtonInteraction, ticketId: number): Promise<void> {
-  const { config, s } = contextFor(interaction.guildId!);
+  const { config, s } = contextForUser(interaction.guildId!, interaction.locale);
   const existing = ticketById(ticketId);
   if (!existing) return;
 
@@ -445,9 +470,10 @@ export async function handleReopen(interaction: ButtonInteraction, ticketId: num
   const ticket = reopenTicket(ticketId);
   if (!ticket) return;
 
+  const ts = ticketTranslator(ticket, config);
   await interaction.update({
-    embeds: [ticketEmbed(ticket, config, s)],
-    components: ticketComponents(ticket, s),
+    embeds: [ticketEmbed(ticket, config, ts)],
+    components: ticketComponents(ticket, ts),
   });
   await interaction.followUp({ content: s('ticket.reopened', { user: `<@${interaction.user.id}>` }) });
 }
@@ -460,7 +486,6 @@ async function refreshTicketMessage(
   interaction: StringSelectMenuInteraction,
   ticket: Ticket,
   config: GuildConfig,
-  s: Translate,
 ): Promise<void> {
   const thread = interaction.channel as GuildTextBasedChannel | null;
   if (!thread?.isThread()) return;
@@ -470,9 +495,10 @@ async function refreshTicketMessage(
     const target = messages.find(
       (message) => message.author.id === interaction.client.user?.id && message.embeds.length > 0,
     );
+    const ts = ticketTranslator(ticket, config);
     await target?.edit({
-      embeds: [ticketEmbed(ticket, config, s)],
-      components: ticketComponents(ticket, s),
+      embeds: [ticketEmbed(ticket, config, ts)],
+      components: ticketComponents(ticket, ts),
     });
   } catch (error) {
     log.warn({ err: error, ticket: ticket.id }, 'could not refresh ticket message');

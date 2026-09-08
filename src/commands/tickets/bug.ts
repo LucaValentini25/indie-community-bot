@@ -3,7 +3,7 @@ import { buildPanel, isStaff } from '../../features/tickets/index.js';
 import { openTickets, ticketStats } from '../../features/tickets/repository.js';
 import {
   brandedEmbed,
-  contextFor,
+  contextForUser,
   describeChannelFailure,
   resolveSendableChannel,
 } from '../../lib/context.js';
@@ -39,7 +39,8 @@ const command: Command = {
 
   async execute(interaction) {
     const guildId = interaction.guildId!;
-    const { config, s } = contextFor(guildId);
+    // All three subcommands reply ephemerally, so they use the viewer's language.
+    const { config, s } = contextForUser(guildId, interaction.locale);
 
     switch (interaction.options.getSubcommand()) {
       case 'panel': {
@@ -59,7 +60,7 @@ const command: Command = {
           return;
         }
 
-        await lookup.channel.send(buildPanel(config, s));
+        await lookup.channel.send(buildPanel(config));
         await interaction.editReply(s('ticket.panelPosted', { channel: `<#${lookup.channel.id}>` }));
         return;
       }

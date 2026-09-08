@@ -1,6 +1,18 @@
-import { InteractionContextType, MessageFlags, PermissionFlagsBits, SlashCommandBuilder } from 'discord.js';
-import { announceBuild, latestBuild, recentBuilds } from '../../features/builds/index.js';
-import { brandedEmbed, contextFor } from '../../lib/context.js';
+import {
+  InteractionContextType,
+  MessageFlags,
+  PermissionFlagsBits,
+  SlashCommandBuilder,
+  type ChatInputCommandInteraction,
+} from 'discord.js';
+import {
+  announceBuild,
+  latestBuild,
+  notesForLocale,
+  recentBuilds,
+  type LocalizedNotes,
+} from '../../features/builds/index.js';
+import { brandedEmbed, contextForUser } from '../../lib/context.js';
 import { absoluteTime, truncate } from '../../lib/text.js';
 import type { Command } from '../../core/types.js';
 
@@ -34,7 +46,21 @@ const command: Command = {
         .addStringOption((option) =>
           option
             .setName('notes')
-            .setDescription('Changelog. Use \\n for line breaks.')
+            .setDescription('Changelog in the main language. Use \n for line breaks.')
+            .setRequired(false)
+            .setMaxLength(3800),
+        )
+        .addStringOption((option) =>
+          option
+            .setName('notes_en')
+            .setDescription('Changelog in English. Overrides notes for the English block.')
+            .setRequired(false)
+            .setMaxLength(3800),
+        )
+        .addStringOption((option) =>
+          option
+            .setName('notes_es')
+            .setDescription('Changelog en español. Reemplaza a notes en el bloque en español.')
             .setRequired(false)
             .setMaxLength(3800),
         )
@@ -63,7 +89,8 @@ const command: Command = {
 
   async execute(interaction) {
     const guildId = interaction.guildId!;
-    const { config, s } = contextFor(guildId);
+    // Every reply here is ephemeral, so it renders in the viewer's own language.
+    const { config, s, locale } = contextForUser(guildId, interaction.locale);
 
     switch (interaction.options.getSubcommand()) {
       case 'announce': {
@@ -77,10 +104,12 @@ const command: Command = {
           version,
           channel,
           // Discord options cannot contain real newlines; let authors type \n.
-          notes: interaction.options.getString('notes')?.replaceAll('\\n', '\n') ?? null,
+          notes: unescapeNewlines(interaction.options.getString('notes')),
+          notesByLocale: notesByLocale(interaction),
           platforms: interaction.options.getString('platforms'),
           url: interaction.options.getString('url'),
           source: 'manual',
+          viewerLocale: interaction.locale,
           force: interaction.options.getBoolean('force') ?? false,
         });
 
@@ -114,7 +143,8 @@ const command: Command = {
         if (build.platforms) {
           embed.addFields({ name: s('build.fieldPlatforms'), value: build.platforms, inline: true });
         }
-        if (build.notes) embed.setDescription(truncate(build.notes, 2000));
+        const notes = notesForLocale(build, locale);
+        if (notes) embed.setDescription(truncate(notes, 2000));
         if (build.url) embed.setURL(build.url);
 
         await interaction.reply({ embeds: [embed], flags: MessageFlags.Ephemeral });
@@ -145,5 +175,19 @@ const command: Command = {
     }
   },
 };
+
+/** Discord option values cannot carry real newlines; authors type a literal \n. */
+function unescapeNewlines(value: string | null): string | null {
+  return value?.replaceAll('\\n', '\n') ?? null;
+}
+
+function notesByLocale(interaction: ChatInputCommandInteraction): LocalizedNotes {
+  const notes: LocalizedNotes = {};
+  const en = unescapeNewlines(interaction.options.getString('notes_en'));
+  const es = unescapeNewlines(interaction.options.getString('notes_es'));
+  if (en) notes.en = en;
+  if (es) notes.es = es;
+  return notes;
+}
 
 export default command;

@@ -1,5 +1,5 @@
 import { AttachmentBuilder, type GuildMember, type GuildTextBasedChannel } from 'discord.js';
-import { contextFor, resolveSendableChannel } from '../../lib/context.js';
+import { contextFor, localeRenderers, resolveSendableChannel } from '../../lib/context.js';
 import { createLogger } from '../../core/logger.js';
 import { renderWelcomeCard } from './card.js';
 
@@ -18,7 +18,10 @@ export async function sendWelcome(
   member: GuildMember,
   channelOverride?: GuildTextBasedChannel,
 ): Promise<boolean> {
-  const { config, s } = contextFor(member.guild.id);
+  const { config } = contextFor(member.guild.id);
+  // A join message is read by the whole server, so it uses every public
+  // language rather than guessing at the new member's.
+  const renderers = localeRenderers(config);
 
   let target = channelOverride;
 
@@ -42,15 +45,22 @@ export async function sendWelcome(
     const card = await renderWelcomeCard({
       username: member.user.displayName || member.user.username,
       avatarUrl: member.user.displayAvatarURL({ extension: 'png', size: 256 }),
-      title: s('welcome.cardTitle'),
-      subtitle: s('welcome.cardSubtitle', { count: member.guild.memberCount }),
+      // "WELCOME · BIENVENIDO" — short enough to stay on one line.
+      title: renderers.map((renderer) => renderer.s('welcome.cardTitle')).join(' · '),
+      // The member number is the same in any language, so it is not worth
+      // doubling; the primary language carries it.
+      subtitle: renderers[0]!.s('welcome.cardSubtitle', { count: member.guild.memberCount }),
       footer: config.gameName,
       accentColor: config.accentColor,
     });
 
-    const message = config.gameName
-      ? s('welcome.messageWithGame', { user: `<@${member.id}>`, game: config.gameName })
-      : s('welcome.message', { user: `<@${member.id}>`, guild: member.guild.name });
+    const message = renderers
+      .map((renderer) =>
+        config.gameName
+          ? renderer.s('welcome.messageWithGame', { user: `<@${member.id}>`, game: config.gameName })
+          : renderer.s('welcome.message', { user: `<@${member.id}>`, guild: member.guild.name }),
+      )
+      .join('\n');
 
     await target.send({
       content: message,

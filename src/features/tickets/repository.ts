@@ -18,6 +18,8 @@ export interface Ticket {
   body: string;
   platform: string | null;
   build_version: string | null;
+  /** The language the report was filed in. NULL for rows predating i18n. */
+  locale: string | null;
   status: TicketStatus;
   resolution: TicketResolution | null;
   closed_by: string | null;
@@ -35,13 +37,14 @@ export interface CreateTicketInput {
   body: string;
   platform: string | null;
   buildVersion: string | null;
+  locale: string;
 }
 
 export function createTicket(input: CreateTicketInput): Ticket {
   return queryOneRequired<Ticket>(
     `INSERT INTO tickets
-       (guild_id, number, thread_id, opener_id, category, title, body, platform, build_version, status, created_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
+       (guild_id, number, thread_id, opener_id, category, title, body, platform, build_version, locale, status, created_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'open', ?)
      RETURNING *`,
     input.guildId,
     input.number,
@@ -52,6 +55,7 @@ export function createTicket(input: CreateTicketInput): Ticket {
     input.body,
     input.platform,
     input.buildVersion,
+    input.locale,
     Date.now(),
   );
 }

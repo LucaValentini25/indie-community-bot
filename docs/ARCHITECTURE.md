@@ -91,6 +91,16 @@ Every outbound message sets it explicitly. Without it, an `@everyone` typed into
 
 `events/interactionCreate.ts` wraps every handler. Handlers may throw freely; the router logs with full context and shows one generic localized message. The alternative is Discord's "application did not respond", which tells the user nothing and you less.
 
+### Three different questions about language
+
+They are genuinely separate, and conflating them is what makes bilingual bots feel broken:
+
+1. **What does the server publish in?** `config.locale` plus the optional `config.secondaryLocale`. `localeRenderers()` turns that into an ordered list, and every public-content builder maps over it — a monolingual server is the one-element case, so there is no "is it bilingual" branch anywhere.
+2. **What does *this viewer* read?** Discord sends `interaction.locale`. `contextForUser()` honours it for ephemeral replies, falling back to the server's primary for a language we do not speak. Zero configuration, and the right answer in a mixed community.
+3. **What language is *this record* in?** A bug report stores the locale it was filed in, so its thread keeps speaking the reporter's language no matter who clicks the buttons later. A build stores its changelog per language in `notes_i18n`.
+
+A public post never uses the viewer's language; an ephemeral reply never uses the server's. `contextFor` vs `contextForUser` at the call site is the whole distinction.
+
 ### i18n as TypeScript, not JSON
 
 `locales/es.ts` is typed against `locales/en.ts`. Adding an English key without translating it is a **compile error**, not an `undefined` in production. `t()` still falls back to English at runtime, then to the key itself — a visibly wrong string beats a crash mid-interaction.

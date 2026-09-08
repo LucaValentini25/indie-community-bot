@@ -1,7 +1,7 @@
 import { Events, MessageFlags, type Interaction, type RepliableInteraction } from 'discord.js';
 import { defineEvent } from '../core/types.js';
 import { createLogger } from '../core/logger.js';
-import { contextFor } from '../lib/context.js';
+import { contextForUser } from '../lib/context.js';
 import type { BotClient } from '../core/client.js';
 import { handlePostModal, isPostModal } from '../features/announcements/modal.js';
 import {
@@ -122,7 +122,7 @@ export default defineEvent({
 /** Replies (or edits, if we already deferred) with the localized error text. */
 async function replyWithError(interaction: RepliableInteraction): Promise<void> {
   const message = interaction.guildId
-    ? contextFor(interaction.guildId).s('common.genericError')
+    ? contextForUser(interaction.guildId, interaction.locale).s('common.genericError')
     : 'Something went wrong.';
 
   try {
