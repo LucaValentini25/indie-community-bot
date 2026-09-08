@@ -29,11 +29,11 @@ That permission number is the exact set the bot uses:
 | View Channels, Send Messages, Read Message History | Baseline |
 | Embed Links, Attach Files | Announcements, devlogs, and the welcome card PNG |
 | Mention Everyone | Only used when you pass `ping: true` to `/announce` |
-| Manage Roles | The automatic role on join |
+| Manage Roles | The automatic role on join, and the `/selfrole` panel |
 | Create Private Threads, Send Messages in Threads, Manage Threads | Bug reports |
 | Manage Messages | Editing and pinning the bug panel |
 
-**About Manage Roles:** Discord will not let a bot assign a role positioned above its own. In **Server Settings → Roles**, drag the bot's role above the role you want it to hand out.
+**About Manage Roles:** Discord will not let a bot assign a role positioned above its own. In **Server Settings → Roles**, drag the bot's role above every role you want it to hand out — the join role and anything on the `/selfrole` panel. `/selfrole list` flags any role that fails this.
 
 ## 3. Run it locally
 
@@ -94,6 +94,70 @@ Then post the bug panel:
 /bug panel
 ```
 
+### The bot's own look, per server
+
+The bot has **two separate appearances**, and confusing them is the usual mistake:
+
+| | Where it lives | Scope |
+|---|---|---|
+| **Global identity** | Developer Portal, or `client.user.setAvatar()` | One picture for the whole application — DMs, the profile card, every server |
+| **Server profile** | `/config branding` | Independent in each server |
+
+`/config branding` sets the second one:
+
+```
+/config branding avatar:[attach a square PNG] nickname:Nombre del Juego
+/config branding banner:[attach an image]
+/config reset setting:Server avatar
+```
+
+**Never try to do this by changing the global avatar per server.** Discord rate limits application avatar and username changes to roughly a couple per hour, so two communities would overwrite each other and both would end up throttled and out of sync. The per-guild profile has no such conflict — it is a different picture in every server, all at once.
+
+Nothing is stored on our side. Discord keeps the server profile, so this writes no database row and nothing is re-applied at startup; `/config view` reads the current state straight off the bot's own member. Changing the nickname needs the **Change Nickname** permission. Avatars want a square PNG or JPG under 10 MB — animated ones are often refused, and the error says so rather than failing quietly.
+
+### Roles that members give themselves
+
+`/config roles` sets the roles the *bot* uses. `/selfrole` sets the ones **members** hand themselves, from a panel of buttons:
+
+```
+/selfrole add role:@Build alerts label:Avisos de build label_en:"Build alerts" emoji:🚀
+/selfrole add role:@Playtester   label:Playtester
+/selfrole panel channel:#roles
+```
+
+Clicking a button gives the role; clicking it again takes it away. The reply is ephemeral and in the clicker's own language.
+
+The natural pairing is with the build-ping role: set it once with `/config roles builds:@Build alerts`, then put that same role on the panel. From then on people opt into build notifications themselves instead of asking a moderator, and `/build announce` keeps pinging exactly the people who asked for it.
+
+A few practical notes:
+
+- **The bot's own role must sit above every role on the panel**, and it needs Manage Roles. `/selfrole add` refuses a role it could not assign and tells you why, rather than letting you build a panel that silently does nothing. `/selfrole list` re-checks all of them — run it first when a button stops working.
+- **A panel holds 25 roles**, which is Discord's limit of five buttons across five rows.
+- **Buttons carry one label for everyone.** In a bilingual server `label_en` and `label_es` are joined onto it (`Avisos de build · Build alerts`), while the embed above renders fully in each language. Pass only `label` and both languages show the same text.
+- **Already-posted panels keep their old buttons.** After adding or removing a role, run `/selfrole panel` again to post an updated one. Clicking a stale button is handled — it tells the person the panel is out of date instead of failing.
+- Deleting a role in Discord takes it off the panel automatically.
+
+### Limiting who can use the bot
+
+By default each command is gated by a Discord permission — `/announce` needs Manage Messages, `/config` needs Manage Server. That is coarse: Manage Messages is one checkbox shared with a dozen unrelated abilities, so a moderator who should only be deleting spam can also publish to the whole community.
+
+`/access` narrows it to named roles:
+
+```
+/access allow command:everything role:@Team          # nobody outside @Team gets any command
+/access allow command:/build role:@Release           # …except /build, which only @Release may run
+/access show                                         # who may use what, in one embed
+/access clear command:/build                         # back to the @Team rule
+```
+
+Three things worth knowing:
+
+- **A command's own list replaces the `everything` list, it does not add to it.** That is what makes the two lines above mean "the team runs the bot, but only the release crew ships a build". If @Team should keep `/build` too, allow them there as well.
+- **Administrators and the server owner always pass**, so a rule can never lock you out of your own server. `/access` itself is Administrator-only and cannot be restricted.
+- **These rules only narrow, never widen.** Discord hides a command outright from anyone lacking its base permission, and the bot never sees the interaction. To *open* a command to a role that lacks that permission, do it in **Server Settings → Integrations → {bot}**, then narrow it back here.
+
+Deleting a role also deletes its rules, so a command never ends up locked behind a role nobody can hold.
+
 ## 5. Test it
 
 | What | How |
@@ -123,7 +187,14 @@ Writes sample cards to `preview/`. Drop artwork at `assets/welcome/background.pn
 | `/config channels` | Manage Server | Set where the bot posts |
 | `/config roles` | Manage Server | Set the join / build-ping / staff roles |
 | `/config general` | Manage Server | Language, game name, accent colour, welcome on/off |
+| `/config branding` | Manage Server | The bot's own avatar, banner and nickname in this server |
 | `/config reset` | Manage Server | Clear one setting |
+| `/access show` | Administrator | Show which roles may use which command |
+| `/access allow` · `/access revoke` | Administrator | Limit a command to specific roles |
+| `/access clear` | Administrator | Drop every rule for a command |
+| `/selfrole add` · `/selfrole remove` | Manage Server | Choose which roles members may give themselves |
+| `/selfrole list` | Manage Server | The panel's roles, and whether the bot can assign each |
+| `/selfrole panel` | Manage Server | Post the button panel |
 | `/welcome test` | Manage Server | Preview the welcome card |
 | `/announce` | Manage Messages | Post an announcement |
 | `/devlog` | Manage Messages | Post a numbered devlog |

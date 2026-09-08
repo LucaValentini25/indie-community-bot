@@ -24,29 +24,31 @@ The base is built and runs. This is what exists, what is left to do to get it li
 - **Builds** — `/build announce`, `/build latest`, `/build list`, plus `POST /hooks/build` for CI, with duplicate suppression
 - **Bug reports** — panel → modal → private thread, claim / close-with-resolution / reopen, `/bug list`, `/bug stats`
 - **`/config check`** — verifies every channel, role and permission
+- **Self-assignable roles** — `/selfrole` builds a button panel members use to opt into roles themselves; toggles on click, bilingual labels, and every hierarchy/permission problem is reported when the role is added rather than discovered at click time
+- **Role-based command access** — `/access` narrows any command, or the whole bot, to the roles you name. Enforced once in the interaction router; administrators and the owner always pass; deleting a role deletes its rules
 - **Bilingual publishing** — a second public language per server: announcements, devlogs, the bug panel and the welcome message render in both, one embed per language in a single message. Ephemeral replies follow each viewer's own Discord language, and a bug thread follows the reporter's
 
 ## Phase 2 — Go live ⬜ next
 
-Roughly a day, most of it waiting on DNS and GCP.
+Steps 1–4 need nothing but a laptop. Step 5 onward needs the machine that will host it.
 
 1. **Create the Discord application** and invite the bot — [docs/SETUP.md](docs/SETUP.md) steps 1–2.
    Do not skip enabling the **Server Members Intent**.
-2. **Run it locally** against a throwaway test server. Verify all five features.
+2. **Run it locally** against a throwaway test server. Verify every feature.
 3. **Design the welcome card.** `npm run preview:card`, drop artwork in `assets/welcome/`, iterate. This is the only piece that needs art direction.
 4. **Push to GitHub** and confirm CI is green.
-5. **Create the GCP VM** — [docs/HOSTING-GCP.md](docs/HOSTING-GCP.md). Set a $1 budget alert.
-6. **Wire the deploy secrets**, push to `main`, watch it roll out.
+5. **Set up the machine.** The bot measures ~125 MB resident, so a spare mini PC or a Raspberry Pi qualifies. It only makes *outbound* connections to Discord, so it needs no static IP, no port forwarding and no domain. For a cloud VM instead, see [docs/HOSTING-ORACLE.md](docs/HOSTING-ORACLE.md) or [docs/HOSTING-GCP.md](docs/HOSTING-GCP.md).
+6. **Wire up deploys** — [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Two Discord applications (dev and prod), two instance directories on the server, and a systemd timer that polls GHCR. After that, `git push` to `main` is the deploy.
 7. **Register commands globally** (unset `DISCORD_DEV_GUILD_ID`) and configure the real server.
 8. **Set up the backup cron.**
 
-**Open decision — build notifications.** You said the pipeline is not set up yet, and Steam is the likely target. That is fine; nothing here blocks on it:
+**Open decision — build notifications.** Nothing here blocks on having a CI pipeline yet. Three paths, in increasing order of setup:
 
 - The **manual** `/build announce` works today, no setup.
 - The **zero-infra** path (`examples/github-actions/notify-discord-webhook.yml`) takes 5 minutes and no server changes.
 - The **full** path needs a domain and TLS on the VM.
 
-Recommendation: ship with manual, add the zero-infra webhook when the first CI pipeline exists, move to the full webhook once the bot has a domain. See [docs/BUILD-NOTIFICATIONS.md](docs/BUILD-NOTIFICATIONS.md).
+The intended order is to ship with manual, add the zero-infra webhook once a CI pipeline exists, and move to the full webhook when the bot has a domain. See [docs/BUILD-NOTIFICATIONS.md](docs/BUILD-NOTIFICATIONS.md).
 
 ---
 
@@ -56,7 +58,6 @@ Ordered by value-per-effort for a small indie community. None are started.
 
 | Feature | Why | Effort |
 |---|---|---|
-| **Autoroles by button** | A panel of buttons for devlog pings, playtester, platform, language. Directly reduces ping fatigue, and the build-notification role already exists in config — this just lets people opt in themselves. | S |
 | **Suggestions with voting** | `/suggestion` → posts with vote buttons and states (considering / accepted / rejected / shipped). The single most requested thing in game communities. | M |
 | **Playtest signups** | A form + a capacity-limited list + a role handed out on acceptance. Pairs with Steam playtest branches. | M |
 | **Bug report attachments & triage** | Priority and area labels, filter `/bug list` by them, and a nudge for reports with no screenshot. Grows naturally out of the tickets table. | S |

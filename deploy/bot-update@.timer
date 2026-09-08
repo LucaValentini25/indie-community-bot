@@ -1,0 +1,19 @@
+# Polls for a new image. This is what makes a push to main reach the server
+# with nothing exposed to the internet: the server reaches out, rather than
+# waiting to be reached.
+
+[Unit]
+Description=Poll GHCR for a new %i bot image
+
+[Timer]
+# First check shortly after boot, then every couple of minutes. Lengthen it
+# freely — nobody is waiting on a Discord bot, and each poll is one request
+# to GHCR.
+OnBootSec=2min
+OnUnitActiveSec=2min
+# Keeps several servers from hitting the registry on the same second.
+RandomizedDelaySec=30s
+Unit=bot-update@%i.service
+
+[Install]
+WantedBy=timers.target

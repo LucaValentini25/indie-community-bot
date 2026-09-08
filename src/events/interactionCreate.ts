@@ -1,9 +1,17 @@
-import { Events, MessageFlags, type Interaction, type RepliableInteraction } from 'discord.js';
+import {
+  Events,
+  MessageFlags,
+  type GuildMember,
+  type Interaction,
+  type RepliableInteraction,
+} from 'discord.js';
 import { defineEvent } from '../core/types.js';
 import { createLogger } from '../core/logger.js';
+import { checkCommandAccess } from '../config/access.js';
 import { contextForUser } from '../lib/context.js';
 import type { BotClient } from '../core/client.js';
 import { handlePostModal, isPostModal } from '../features/announcements/modal.js';
+import { handleSelfRoleToggle } from '../features/selfroles/index.js';
 import {
   TicketIds,
   handleClaim,
@@ -23,6 +31,9 @@ const log = createLogger('interactions');
  * match on the first segment. Handlers may throw freely: this router catches,
  * logs with full context, and shows the user one generic message rather than
  * leaving the interaction hanging as "application did not respond".
+ *
+ * It is also the single place the per-guild role gate is enforced, so a command
+ * file cannot forget to check it. See `config/access.ts`.
  */
 export default defineEvent({
   name: Events.InteractionCreate,
@@ -30,6 +41,15 @@ export default defineEvent({
   async execute(interaction: Interaction) {
     try {
       if (interaction.isAutocomplete()) {
+        // Gated as well as the command itself: suggestions are drawn from the
+        // guild's own data, so they should not be readable by someone who is
+        // not allowed to run the command they belong to.
+        const member = interaction.member as GuildMember | null;
+        if (!checkCommandAccess(member, interaction.commandName).allowed) {
+          await interaction.respond([]);
+          return;
+        }
+
         const command = (interaction.client as BotClient).commands.get(interaction.commandName);
         await command?.autocomplete?.(interaction);
         return;
@@ -58,12 +78,36 @@ export default defineEvent({
           return;
         }
 
+        const decision = checkCommandAccess(interaction.member as GuildMember | null, command.data.name);
+
+        if (!decision.allowed) {
+          const { s } = contextForUser(interaction.guild.id, interaction.locale);
+          await interaction.reply({
+            content:
+              decision.requiredRoles.length > 0
+                ? s('access.denied', {
+                    roles: decision.requiredRoles.map((id) => `<@&${id}>`).join(', '),
+                  })
+                : s('common.missingPermission'),
+            // Naming the roles is the point of the message, not a ping.
+            allowedMentions: { parse: [] },
+            flags: MessageFlags.Ephemeral,
+          });
+          return;
+        }
+
         await command.execute(interaction);
         return;
       }
 
       if (interaction.isButton()) {
         const [feature, action, id] = interaction.customId.split(':');
+
+        if (feature === 'selfrole' && action === 'toggle' && id) {
+          await handleSelfRoleToggle(interaction, id);
+          return;
+        }
+
         if (feature !== 'ticket') return;
 
         switch (action) {

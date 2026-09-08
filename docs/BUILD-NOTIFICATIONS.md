@@ -42,7 +42,7 @@ Generate it with `openssl rand -hex 32` (or `node -e "console.log(require('crypt
 
 ### 2. Expose the endpoint over HTTPS
 
-See [HOSTING-GCP.md → Exposing the build webhook](./HOSTING-GCP.md#exposing-the-build-webhook-only-if-you-use-notify-botyml). The container listens on `127.0.0.1:8080`; Caddy terminates TLS in front of it.
+See [HOSTING-ORACLE.md → Exposing the build webhook](./HOSTING-ORACLE.md#exposing-the-build-webhook-only-if-you-use-notify-botyml), or [HOSTING-GCP.md → Exposing the build webhook](./HOSTING-GCP.md#exposing-the-build-webhook-only-if-you-use-notify-botyml) if you host there. The container listens on `127.0.0.1:8080`; Caddy terminates TLS in front of it.
 
 **The secret travels in a header, so plain HTTP would leak it.** Do not skip the TLS step.
 

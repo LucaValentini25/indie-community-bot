@@ -4,7 +4,9 @@ import {
   MessageFlags,
   PermissionFlagsBits,
   SlashCommandBuilder,
+  type ChatInputCommandInteraction,
   type Guild,
+  type GuildMemberEditMeOptions,
 } from 'discord.js';
 import { forgetGuildConfig, updateGuildConfig, type GuildConfig } from '../../config/guild.js';
 import { brandedEmbed, contextForUser, resolveSendableChannel } from '../../lib/context.js';
@@ -119,6 +121,33 @@ const command: Command = {
     )
     .addSubcommand((sub) =>
       sub
+        .setName('branding')
+        .setDescription("The bot's own name and picture in this server")
+        .setDescriptionLocalizations({ 'es-ES': 'El nombre y la imagen del bot en este servidor' })
+        .addAttachmentOption((option) =>
+          option
+            .setName('avatar')
+            .setDescription('Profile picture, only in this server. Square, PNG or JPG.')
+            .setDescriptionLocalizations({
+              'es-ES': 'Foto de perfil, solo en este servidor. Cuadrada, PNG o JPG.',
+            }),
+        )
+        .addAttachmentOption((option) =>
+          option
+            .setName('banner')
+            .setDescription('Profile banner, only in this server')
+            .setDescriptionLocalizations({ 'es-ES': 'Portada del perfil, solo en este servidor' }),
+        )
+        .addStringOption((option) =>
+          option
+            .setName('nickname')
+            .setDescription('Name the bot goes by in this server')
+            .setDescriptionLocalizations({ 'es-ES': 'Nombre que usa el bot en este servidor' })
+            .setMaxLength(32),
+        ),
+    )
+    .addSubcommand((sub) =>
+      sub
         .setName('reset')
         .setDescription('Clear a setting')
         .setDescriptionLocalizations({ 'es-ES': 'Borrar una configuración' })
@@ -138,6 +167,9 @@ const command: Command = {
               { name: 'Staff role', value: 'ticketStaffRoleId' },
               { name: 'Game name', value: 'gameName' },
               { name: 'Second language', value: 'secondaryLocale' },
+              { name: 'Server avatar', value: 'serverAvatar' },
+              { name: 'Server banner', value: 'serverBanner' },
+              { name: 'Server nickname', value: 'serverNickname' },
             ),
         ),
     ),
@@ -150,7 +182,7 @@ const command: Command = {
 
     if (subcommand === 'view') {
       await interaction.reply({
-        embeds: [configEmbed(config, guild.name, s)],
+        embeds: [configEmbed(config, guild, s)],
         flags: MessageFlags.Ephemeral,
       });
       return;
@@ -164,11 +196,33 @@ const command: Command = {
 
     if (subcommand === 'reset') {
       const setting = interaction.options.getString('setting', true);
+
+      // The server profile is stored by Discord, not by us, so these three
+      // clear through the API rather than through a database column.
+      const profileField = PROFILE_RESETS[setting];
+      if (profileField) {
+        await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+        try {
+          await guild.members.editMe({ [profileField]: null });
+          await interaction.editReply({ content: s('config.brandingCleared') });
+        } catch (error) {
+          await interaction.editReply({ content: describeProfileFailure(error, s) });
+        }
+        return;
+      }
+
       updateGuildConfig(guild.id, { [setting]: null });
       await interaction.reply({
         content: s('config.reset', { field: setting }),
         flags: MessageFlags.Ephemeral,
       });
+      return;
+    }
+
+    if (subcommand === 'branding') {
+      // Downloading two images can outrun the 3s window, so defer first.
+      await interaction.deferReply({ flags: MessageFlags.Ephemeral });
+      await applyBranding(interaction, s);
       return;
     }
 
@@ -252,11 +306,113 @@ const command: Command = {
 
     await interaction.reply({
       content: `✅ ${changed.join(', ')}`,
-      embeds: [configEmbed(updated, guild.name, s)],
+      embeds: [configEmbed(updated, guild, s)],
       flags: MessageFlags.Ephemeral,
     });
   },
 };
+
+/**
+ * The bot has two separate appearances, and mixing them up is the usual
+ * mistake here:
+ *
+ *  - A **global** identity (`client.user.setAvatar()`) — one picture for the
+ *    whole application, seen in DMs and on the bot's profile card. It is
+ *    shared by every server and rate limited to a couple of changes per hour,
+ *    so it must never be driven per guild: two communities would fight over it
+ *    and both would end up throttled.
+ *  - A **per-guild server profile** (`guild.members.editMe()`), which is what
+ *    this subcommand sets. Avatar, banner and nickname, independent in every
+ *    server.
+ *
+ * Discord stores the result, so there is nothing to persist here and nothing
+ * to re-apply on boot — unlike the rest of `/config`, this writes no database
+ * row. `/config view` reads the current values back off our own member.
+ */
+const PROFILE_RESETS: Record<string, 'avatar' | 'banner' | 'nick' | undefined> = {
+  serverAvatar: 'avatar',
+  serverBanner: 'banner',
+  serverNickname: 'nick',
+};
+
+/** Discord rejects anything larger; checked here to give a better message. */
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+
+async function applyBranding(interaction: ChatInputCommandInteraction, s: Translate): Promise<void> {
+  const guild = interaction.guild!;
+  const patch: GuildMemberEditMeOptions = {};
+  const changed: string[] = [];
+
+  for (const [option, field] of [
+    ['avatar', 'avatar'],
+    ['banner', 'banner'],
+  ] as const) {
+    const attachment = interaction.options.getAttachment(option);
+    if (!attachment) continue;
+
+    if (!attachment.contentType?.startsWith('image/')) {
+      await interaction.editReply({ content: s('config.brandingNotImage', { file: attachment.name }) });
+      return;
+    }
+    if (attachment.size > MAX_IMAGE_BYTES) {
+      await interaction.editReply({ content: s('config.brandingTooBig') });
+      return;
+    }
+
+    const image = await downloadImage(attachment.url);
+    if (!image) {
+      await interaction.editReply({ content: s('config.brandingDownloadFailed') });
+      return;
+    }
+
+    patch[field] = image;
+    changed.push(field === 'avatar' ? s('config.fieldServerAvatar') : s('config.fieldServerBanner'));
+  }
+
+  const nickname = interaction.options.getString('nickname');
+  if (nickname !== null) {
+    patch.nick = nickname;
+    changed.push(s('config.fieldServerNickname'));
+  }
+
+  if (changed.length === 0) {
+    await interaction.editReply({ content: s('config.brandingNothing') });
+    return;
+  }
+
+  try {
+    await guild.members.editMe(patch);
+  } catch (error) {
+    await interaction.editReply({ content: describeProfileFailure(error, s) });
+    return;
+  }
+
+  await interaction.editReply({
+    content: `✅ ${s('config.brandingUpdated', { fields: changed.join(', ') })}\n${s('config.brandingScopeNote')}`,
+  });
+}
+
+/** Fetches the attachment as bytes. Null on any failure — the caller explains. */
+async function downloadImage(url: string): Promise<Buffer | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    return Buffer.from(await response.arrayBuffer());
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Discord's failures here are specific and actionable, so they are worth
+ * separating rather than collapsing into "something went wrong".
+ */
+function describeProfileFailure(error: unknown, s: Translate): string {
+  const code = (error as { code?: number }).code;
+  if (code === 50013) return s('config.brandingNoPermission');
+  if (code === 50035) return s('config.brandingRejected');
+  return s('common.genericError');
+}
 
 function collect(
   patch: Record<string, unknown>,
@@ -270,13 +426,13 @@ function collect(
   changed.push(label);
 }
 
-function configEmbed(config: GuildConfig, guildName: string, s: Translate) {
+function configEmbed(config: GuildConfig, guild: Guild, s: Translate) {
   const channel = (id: string | null) => (id ? `<#${id}>` : s('common.notSet'));
   const role = (id: string | null) => (id ? `<@&${id}>` : s('common.notSet'));
 
   return brandedEmbed(config)
     .setTitle(s('config.title'))
-    .setDescription(s('config.description', { guild: guildName }))
+    .setDescription(s('config.description', { guild: guild.name }))
     .addFields(
       {
         name: s('config.sectionGeneral'),
@@ -308,6 +464,20 @@ function configEmbed(config: GuildConfig, guildName: string, s: Translate) {
           `**${s('config.fieldBuildChannel')}:** ${channel(config.buildChannelId)}`,
           `**${s('config.fieldBuildRole')}:** ${role(config.buildRoleId)}`,
         ].join('\n'),
+      },
+      {
+        name: s('config.sectionIdentity'),
+        value: (() => {
+          // Read back off our own member rather than a column: Discord owns
+          // this state, so it is the only source that cannot go stale.
+          const me = guild.members.me;
+          const yes = (set: boolean) => (set ? s('common.enabled') : s('common.notSet'));
+          return [
+            `**${s('config.fieldServerNickname')}:** ${me?.nickname ?? s('common.notSet')}`,
+            `**${s('config.fieldServerAvatar')}:** ${yes(Boolean(me?.avatar))}`,
+            `**${s('config.fieldServerBanner')}:** ${yes(Boolean(me?.banner))}`,
+          ].join('\n');
+        })(),
       },
       {
         name: s('config.sectionTickets'),

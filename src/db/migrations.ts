@@ -127,4 +127,52 @@ export const migrations: readonly Migration[] = [
       ALTER TABLE tickets ADD COLUMN locale TEXT;
     `,
   },
+  {
+    id: 3,
+    name: 'command_access',
+    sql: /* sql */ `
+      -- Which roles may use which command, per server.
+      --
+      -- A row is a grant. No rows for a command means "unrestricted by us" —
+      -- Discord's own default member permissions still apply, which is why the
+      -- absence of rules is a safe default rather than an open door.
+      --
+      -- \`command\` is a top-level command name ('build', 'announce', ...) or
+      -- '*', which stands for every command that has no list of its own.
+      CREATE TABLE command_access (
+        guild_id   TEXT NOT NULL,
+        command    TEXT NOT NULL,
+        role_id    TEXT NOT NULL,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (guild_id, command, role_id)
+      ) STRICT;
+    `,
+  },
+  {
+    id: 4,
+    name: 'self_roles',
+    sql: /* sql */ `
+      -- Roles members may give themselves from a button panel. Opt-in pings
+      -- (a build-notification role nobody has to ask a moderator for) and
+      -- self-declared groups: playtester, platform, language.
+      --
+      -- A component carries exactly one label no matter who is looking at it,
+      -- so \`label\` is what the button says. \`label_i18n\` holds the per-locale
+      -- copy, same JSON-keyed-by-locale shape as \`builds.notes_i18n\`, and a
+      -- bilingual server joins them onto the one button.
+      --
+      -- Ordering is by \`created_at\`: re-adding a role updates it in place and
+      -- deliberately leaves the timestamp alone, so editing a label never
+      -- reshuffles the panel.
+      CREATE TABLE self_roles (
+        guild_id   TEXT NOT NULL,
+        role_id    TEXT NOT NULL,
+        label      TEXT NOT NULL,
+        label_i18n TEXT,
+        emoji      TEXT,
+        created_at INTEGER NOT NULL,
+        PRIMARY KEY (guild_id, role_id)
+      ) STRICT;
+    `,
+  },
 ];

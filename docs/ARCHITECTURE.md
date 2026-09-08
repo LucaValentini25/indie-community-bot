@@ -19,7 +19,8 @@ src/
 ├─ index.ts              Boot: migrate → load → connect → serve → shut down cleanly
 ├─ config/
 │  ├─ env.ts             Process config from the environment, validated once at boot
-│  └─ guild.ts           Per-guild settings, cached, backed by SQLite
+│  ├─ guild.ts           Per-guild settings, cached, backed by SQLite
+│  └─ access.ts          Which roles may run which command, cached the same way
 ├─ core/
 │  ├─ client.ts          discord.js client: intents and cache limits
 │  ├─ loader.ts          Filesystem discovery of commands and events
@@ -33,7 +34,8 @@ src/
 │  ├─ welcome/           Card rendering (canvas) + join handling
 │  ├─ announcements/     Announcements and devlogs
 │  ├─ builds/            Build announcements + history
-│  └─ tickets/           Bug reports: panel, modal, threads, lifecycle
+│  ├─ tickets/           Bug reports: panel, modal, threads, lifecycle
+│  └─ selfroles/         Opt-in role panel: buttons, toggling, assignability
 ├─ commands/             Slash command definitions — thin, delegate to features
 ├─ events/               Gateway event handlers — thin, delegate to features
 ├─ http/server.ts        /health and POST /hooks/build
@@ -90,6 +92,12 @@ Every outbound message sets it explicitly. Without it, an `@everyone` typed into
 ### Errors never leave an interaction hanging
 
 `events/interactionCreate.ts` wraps every handler. Handlers may throw freely; the router logs with full context and shows one generic localized message. The alternative is Discord's "application did not respond", which tells the user nothing and you less.
+
+### Authorisation is enforced in one place
+
+`setDefaultMemberPermissions` on a command is Discord's gate, and it is coarse: Manage Messages is a single checkbox shared with a dozen unrelated abilities. `config/access.ts` adds a per-guild role list on top, and `events/interactionCreate.ts` is the **only** place it is checked — before `execute()` and before any autocomplete handler runs. A command file therefore cannot forget the check, and adding a command does not mean remembering to add a guard.
+
+It can only narrow. Discord never delivers the interaction to a member who fails the base permission, so the bot has no way to widen access from here — that stays in Server Settings → Integrations, deliberately. Administrators and the owner always pass, because a rule that can lock the server out of its own bot is a bug waiting to happen. A command's own role list overrides the wildcard rather than merging with it, which is what makes "staff run the bot, only the release crew ships a build" expressible.
 
 ### Three different questions about language
 

@@ -19,6 +19,9 @@ Node 24 · TypeScript · discord.js v14 · SQLite (node:sqlite) · Docker
 | 🚀 **Build notifications** | `/build announce` by hand, or `POST /hooks/build` from GitHub Actions / Steam CI. Both take the same path, so they look identical. Duplicate announcements are refused, so a re-run is a no-op. |
 | 🐛 **Bug reports** | A panel with a button → a modal → a **private thread** per report. Claim, close with a resolution, reopen. Numbered per server. |
 | 🌍 **Bilingual** | Set a primary and a second language per server. Public posts render in both — one message, one embed per language. Replies only one person sees follow *their* Discord language automatically. Locales are type-checked against each other, so a missing translation is a compile error. |
+| 🎨 **Per-server identity** | The bot wears a different avatar, banner and nickname in each community — Discord's own per-guild profile, so one deployment does not mean one face. |
+| 🏷️ **Self-assignable roles** | A button panel where members opt into roles themselves — build pings, playtester, platform, language. Toggling is one click, and nobody has to ask a moderator. |
+| 🔒 **Role-based access** | `/access` limits any command to the roles you name — per command, or across the bot. Finer than Discord's own permission checkboxes, and administrators always pass so it cannot lock you out. |
 | ♻️ **Multi-server** | No hardcoded IDs. Reuse the same deployment for the next game. |
 
 ## Quick start
@@ -56,7 +59,9 @@ Writes samples to `preview/`. Drop artwork at `assets/welcome/background.png` (1
 | | |
 |---|---|
 | **[SETUP.md](docs/SETUP.md)** | Discord app, intents, invite, first run, command reference, troubleshooting |
-| **[HOSTING-GCP.md](docs/HOSTING-GCP.md)** | Free 24/7 hosting on a Google Cloud e2-micro, with automatic deploys, TLS, and backups |
+| **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** | A dev branch on a test server, main on the real one, and a server that updates itself from GHCR with automatic rollback |
+| **[HOSTING-ORACLE.md](docs/HOSTING-ORACLE.md)** | Free 24/7 hosting on Oracle Cloud Always Free — no accidental billing, 4 ARM cores |
+| **[HOSTING-GCP.md](docs/HOSTING-GCP.md)** | The same on a Google Cloud e2-micro |
 | **[BUILD-NOTIFICATIONS.md](docs/BUILD-NOTIFICATIONS.md)** | Three ways to announce a build, the webhook API, Steam and itch.io |
 | **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | How the code is organised and why |
 | **[PLAN.md](PLAN.md)** | What is built, what is next |
@@ -80,9 +85,9 @@ npm run format           # prettier
 
 The bot holds an open WebSocket to Discord, so it needs a process that stays alive — **Vercel and Cloudflare Workers cannot host it** (they can serve slash commands over HTTP Interactions, but never `guildMemberAdd`, which is what the welcome card runs on).
 
-The setup documented here is a **Google Cloud `e2-micro`**, which is free indefinitely on the Always Free tier and runs this comfortably. GitHub Actions builds the image and the VM only pulls it, because 1 GB of RAM is enough to run the bot but not to compile it.
+What it does need is modest: **~125 MB resident**, one core, and a disk that survives a reboot. Any spare machine clears that — an old mini PC, a laptop, a Raspberry Pi. And because it only makes *outbound* connections, running it at home needs no static IP, no port forwarding and no domain.
 
-Nothing is Google-specific: it is a Docker container with one volume. Oracle Cloud's free ARM instance, a €4 VPS, or a Raspberry Pi all work with the same two files.
+It is a Docker container with one volume, so nothing here is provider-specific. [HOSTING-ORACLE.md](docs/HOSTING-ORACLE.md) and [HOSTING-GCP.md](docs/HOSTING-GCP.md) document two free cloud VMs; the image is published for both `amd64` and `arm64`, so the target is one secret away.
 
 ```bash
 docker compose up -d --build     # local

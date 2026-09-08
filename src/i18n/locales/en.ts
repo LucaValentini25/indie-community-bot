@@ -50,6 +50,74 @@ export const en = {
     checkOk: 'Ready',
     checkMissing: 'Not configured',
     checkNoPermission: 'Configured, but I lack permissions',
+    fieldServerAvatar: 'Server avatar',
+    fieldServerBanner: 'Server banner',
+    fieldServerNickname: 'Nickname here',
+    sectionIdentity: 'Appearance in this server',
+    brandingUpdated: 'Updated **{fields}**.',
+    brandingScopeNote:
+      'This only changes how I look in this server. My picture everywhere else is unaffected.',
+    brandingCleared: 'Cleared. I am back to my default look in this server.',
+    brandingNothing: 'Nothing to change — attach an avatar or a banner, or pass a nickname.',
+    brandingNotImage: '`{file}` is not an image.',
+    brandingTooBig: 'That image is over 10 MB. Discord will not take it.',
+    brandingDownloadFailed: 'I could not download that attachment. Try uploading it again.',
+    brandingNoPermission: 'I need the **Change Nickname** permission to rename myself here.',
+    brandingRejected:
+      'Discord rejected that image. Avatars want a square PNG or JPG; animated ones are often refused.',
+  },
+
+  access: {
+    title: 'Command access',
+    description: 'Which roles may use each command in **{guild}**.',
+    everyCommand: 'Every command',
+    everythingElse: 'Everything else',
+    discordDefault: 'whoever Discord’s own permissions allow',
+    noRules:
+      'No restrictions yet. Every command is gated only by Discord’s own permissions. Use `/access allow` to narrow one down to specific roles.',
+    allowed: '{role} can now use **{command}**.',
+    alreadyAllowed: '{role} could already use **{command}**.',
+    revoked: '{role} can no longer use **{command}**.',
+    notAllowed: 'There was no rule giving {role} access to **{command}**.',
+    cleared: 'Removed {count} rule(s) from **{command}**.',
+    nothingToClear: 'There was nothing to clear for **{command}**.',
+    unknownCommand: 'There is no command called **{command}**.',
+    selfLocked:
+      '`/access` is always Administrator-only — restricting it could lock the server out of its own bot.',
+    overridesWildcard:
+      '⚠️ A command’s own list replaces the one set for every command, so the roles listed under **Every command** no longer reach **{command}**. Add them here too if they should.',
+    denied: 'This command is limited to {roles}.',
+    footer:
+      'Administrators and the server owner always pass. These rules narrow Discord’s permissions and cannot widen them.',
+  },
+
+  selfrole: {
+    panelTitle: 'Pick your roles',
+    panelDescription: 'Click a button to give yourself a role. Click it again to take it off.',
+    added: 'You now have {role}.',
+    removed: 'You no longer have {role}.',
+    unavailable:
+      'That role is not available any more. This panel is out of date — ask an admin to post a new one.',
+    listTitle: 'Self-assignable roles',
+    listEmpty: 'None yet. Add one with `/selfrole add`, then post the panel with `/selfrole panel`.',
+    listCount: '{count} of {max} slots used.',
+    addedRule: '{role} is now self-assignable.',
+    updatedRule: 'Updated {role}.',
+    removedRule: '{role} is no longer self-assignable.',
+    notInList: '{role} was not on the panel.',
+    roleGone: 'this role no longer exists',
+    repostReminder:
+      'Run `/selfrole panel` to post an updated panel — messages already posted keep the old buttons.',
+    full: 'A panel holds at most {max} roles, which is Discord’s limit of five buttons across five rows.',
+    invalidEmoji:
+      '`{emoji}` is not something I can put on a button. Use a single emoji, or a custom one as `<:name:id>`.',
+    managedRole: '{role} is managed by an integration or a bot, so nobody can be given it by hand.',
+    everyoneRole: '@everyone is not a role anyone can opt into.',
+    needManageRoles: 'I need the **Manage Roles** permission before I can hand out any role.',
+    aboveMe:
+      'My own role has to sit above {role} for me to assign it. Move it up in Server Settings → Roles.',
+    panelPosted: 'Panel posted in {channel}.',
+    panelEmpty: 'Add at least one role with `/selfrole add` before posting the panel.',
   },
 
   welcome: {

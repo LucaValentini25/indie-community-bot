@@ -50,6 +50,74 @@ export const es: LocaleStrings = {
     checkOk: 'Listo',
     checkMissing: 'Sin configurar',
     checkNoPermission: 'Configurado, pero me faltan permisos',
+    fieldServerAvatar: 'Avatar del servidor',
+    fieldServerBanner: 'Portada del servidor',
+    fieldServerNickname: 'Apodo acá',
+    sectionIdentity: 'Apariencia en este servidor',
+    brandingUpdated: 'Se actualizó **{fields}**.',
+    brandingScopeNote: 'Esto cambia solo cómo me veo en este servidor. Mi imagen en el resto queda igual.',
+    brandingCleared: 'Listo. Vuelvo a mi apariencia por defecto en este servidor.',
+    brandingNothing: 'No hay nada que cambiar — adjuntá un avatar o una portada, o pasá un apodo.',
+    brandingNotImage: '`{file}` no es una imagen.',
+    brandingTooBig: 'Esa imagen pasa los 10 MB. Discord no la va a aceptar.',
+    brandingDownloadFailed: 'No pude descargar ese adjunto. Probá subirlo de nuevo.',
+    brandingNoPermission: 'Necesito el permiso **Cambiar apodo** para renombrarme acá.',
+    brandingRejected:
+      'Discord rechazó esa imagen. Los avatares piden PNG o JPG cuadrado; los animados suelen ser rechazados.',
+  },
+
+  access: {
+    title: 'Acceso a los comandos',
+    description: 'Qué roles pueden usar cada comando en **{guild}**.',
+    everyCommand: 'Todos los comandos',
+    everythingElse: 'Todo lo demás',
+    discordDefault: 'quien los permisos de Discord permitan',
+    noRules:
+      'Todavía no hay restricciones. Cada comando depende solo de los permisos de Discord. Usá `/access allow` para limitar uno a roles concretos.',
+    allowed: '{role} ya puede usar **{command}**.',
+    alreadyAllowed: '{role} ya podía usar **{command}**.',
+    revoked: '{role} ya no puede usar **{command}**.',
+    notAllowed: 'No había ninguna regla que le diera acceso a {role} sobre **{command}**.',
+    cleared: 'Se borraron {count} regla(s) de **{command}**.',
+    nothingToClear: 'No había nada que borrar en **{command}**.',
+    unknownCommand: 'No existe ningún comando llamado **{command}**.',
+    selfLocked:
+      '`/access` siempre es solo para administradores — restringirlo podría dejar al servidor afuera de su propio bot.',
+    overridesWildcard:
+      '⚠️ La lista propia de un comando reemplaza a la de todos los comandos, así que los roles de **Todos los comandos** ya no llegan a **{command}**. Agregalos acá también si corresponde.',
+    denied: 'Este comando está limitado a {roles}.',
+    footer:
+      'Los administradores y el dueño del servidor siempre pasan. Estas reglas achican los permisos de Discord, nunca los amplían.',
+  },
+
+  selfrole: {
+    panelTitle: 'Elegí tus roles',
+    panelDescription: 'Tocá un botón para darte un rol. Tocalo de nuevo para sacártelo.',
+    added: 'Ya tenés {role}.',
+    removed: 'Ya no tenés {role}.',
+    unavailable:
+      'Ese rol ya no está disponible. Este panel quedó viejo — pedile a un admin que publique uno nuevo.',
+    listTitle: 'Roles autoasignables',
+    listEmpty:
+      'Todavía ninguno. Agregá uno con `/selfrole add` y después publicá el panel con `/selfrole panel`.',
+    listCount: '{count} de {max} lugares usados.',
+    addedRule: '{role} ya se puede autoasignar.',
+    updatedRule: 'Se actualizó {role}.',
+    removedRule: '{role} ya no se puede autoasignar.',
+    notInList: '{role} no estaba en el panel.',
+    roleGone: 'este rol ya no existe',
+    repostReminder:
+      'Corré `/selfrole panel` para publicar el panel actualizado — los mensajes ya publicados conservan los botones viejos.',
+    full: 'Un panel admite hasta {max} roles, que es el límite de Discord de cinco botones por cinco filas.',
+    invalidEmoji:
+      '`{emoji}` no es algo que pueda poner en un botón. Usá un solo emoji, o uno personalizado como `<:nombre:id>`.',
+    managedRole: '{role} lo administra una integración o un bot, así que no se le puede dar a nadie a mano.',
+    everyoneRole: '@everyone no es un rol al que alguien pueda sumarse.',
+    needManageRoles: 'Necesito el permiso **Gestionar roles** antes de poder repartir cualquier rol.',
+    aboveMe:
+      'Mi propio rol tiene que estar por encima de {role} para poder asignarlo. Subilo en Configuración del servidor → Roles.',
+    panelPosted: 'Panel publicado en {channel}.',
+    panelEmpty: 'Agregá al menos un rol con `/selfrole add` antes de publicar el panel.',
   },
 
   welcome: {

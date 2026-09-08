@@ -1,41 +1,54 @@
 # Compose file used ON THE SERVER.
 #
-# The VM never builds the image — GitHub Actions builds it and pushes it to
-# GHCR, and this file only pulls and runs it. That keeps the 1 GB e2-micro out
-# of the build business entirely.
+# The server never builds the image — GitHub Actions builds it and pushes it to
+# GHCR, and this file only pulls and runs it.
 #
-# On the VM you need exactly two files: this one and .env.
+# The same file runs both instances; what differs is the .env sitting next to
+# it. Compose reads that .env for `${...}` below *and* passes it to the
+# container, and it names the volume after the directory, so two copies of this
+# directory are two fully separate bots with separate databases:
+#
+#   /opt/bot-prod/.env  →  BOT_INSTANCE=prod  BOT_CHANNEL=latest  HOST_PORT=8080
+#   /opt/bot-dev/.env   →  BOT_INSTANCE=dev   BOT_CHANNEL=dev     HOST_PORT=8081
 #
 #   docker compose -f docker-compose.prod.yml pull
 #   docker compose -f docker-compose.prod.yml up -d
+#
+# See docs/DEPLOYMENT.md. Day to day you should not need to run either command:
+# the bot-update@ timer does it.
 
 services:
   bot:
     # Replace OWNER/REPO with your GitHub repository, lowercase.
-    image: ghcr.io/OWNER/REPO:latest
-    container_name: indie-community-bot
+    # BOT_CHANNEL is the branch this instance follows: `latest` for main,
+    # `dev` for dev.
+    image: ghcr.io/OWNER/REPO:${BOT_CHANNEL:-latest}
+    container_name: bot-${BOT_INSTANCE:-prod}
     restart: unless-stopped
 
     env_file: .env
     environment:
       NODE_ENV: production
       DATABASE_PATH: /data/bot.db
+      # Always 8080 *inside* the container. Only the host side varies, so the
+      # image, the healthcheck and the reverse proxy config stay identical.
       HTTP_PORT: 8080
 
     volumes:
-      # The SQLite database — the only state worth backing up.
+      # The SQLite database — the only state worth backing up. Compose prefixes
+      # this with the directory name, so prod and dev never share one.
       - bot-data:/data
 
     ports:
       # Localhost only. Expose the build webhook to the internet through a
-      # reverse proxy with TLS (see docs/HOSTING-GCP.md), never directly.
-      - "127.0.0.1:8080:8080"
+      # reverse proxy with TLS, never directly.
+      - '127.0.0.1:${HOST_PORT:-8080}:8080'
 
     logging:
       driver: json-file
       options:
-        max-size: "10m"
-        max-file: "3"
+        max-size: '10m'
+        max-file: '3'
 
 volumes:
   bot-data:

@@ -26,3 +26,12 @@ Thumbs.db
 
 # Locally rendered card previews
 preview/
+
+# Exported chat/agent transcripts. These land in the repo root and are the one
+# thing a `git add -A` would sweep into a public repo by accident.
+/*.txt
+
+# Stray SQLite files outside data/
+*.db
+*.db-shm
+*.db-wal

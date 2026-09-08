@@ -51,7 +51,11 @@ USER node
 
 EXPOSE 8080
 
-HEALTHCHECK --interval=60s --timeout=5s --start-period=20s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.HTTP_PORT||8080)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+# Requires status:"ok", not merely a 200. /health answers 200 with
+# status:"starting" while the gateway is still connecting, so checking only the
+# status code would report a bot with a bad token as healthy forever — and the
+# automatic rollback in deploy/update-bot.sh gates on exactly this verdict.
+HEALTHCHECK --interval=60s --timeout=5s --start-period=40s --retries=3 \
+  CMD node -e "fetch('http://127.0.0.1:'+(process.env.HTTP_PORT||8080)+'/health').then(r=>r.json()).then(j=>process.exit(j.status==='ok'?0:1)).catch(()=>process.exit(1))"
 
 CMD ["node", "dist/index.js"]

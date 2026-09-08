@@ -1,0 +1,23 @@
+# Checks GHCR for a new image and rolls it out. One instance per bot:
+#   bot-update@prod  →  /opt/bot-prod   follows :latest
+#   bot-update@dev   →  /opt/bot-dev    follows :dev
+#
+# Install:  sudo cp deploy/bot-update@.* /etc/systemd/system/
+#           sudo cp deploy/update-bot.sh /usr/local/bin/ && sudo chmod +x /usr/local/bin/update-bot.sh
+#           sudo systemctl enable --now bot-update@prod.timer
+
+[Unit]
+Description=Update the %i Discord bot from GHCR
+# Pointless before the network and Docker are up; a failure here would just be
+# a confusing log line at every boot.
+After=network-online.target docker.service
+Wants=network-online.target
+Requires=docker.service
+
+[Service]
+Type=oneshot
+# Exit 1 is how the script reports "rolled back". That is a real failure worth
+# seeing in `systemctl status`, and the timer fires again regardless.
+ExecStart=/usr/local/bin/update-bot.sh %i
+EnvironmentFile=-/opt/bot-%i/deploy.env
+TimeoutStartSec=600
