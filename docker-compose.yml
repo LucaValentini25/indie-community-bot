@@ -1,0 +1,33 @@
+services:
+  bot:
+    build: .
+    image: indie-community-bot:latest
+    container_name: indie-community-bot
+    restart: unless-stopped
+
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_PATH: /data/bot.db
+      HTTP_PORT: 8080
+
+    volumes:
+      # The SQLite database. This is the only state worth backing up.
+      - bot-data:/data
+      # Swap in artwork/fonts without rebuilding the image.
+      - ./assets:/app/assets:ro
+
+    ports:
+      # Bound to localhost only: the build webhook is meant to sit behind a
+      # reverse proxy with TLS, never exposed straight to the internet.
+      # Change to "8080:8080" only if you know what you are doing.
+      - "127.0.0.1:8080:8080"
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot-data:

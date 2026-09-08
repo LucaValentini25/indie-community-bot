@@ -1,0 +1,71 @@
+# ─────────────────────────────────────────────────────────────
+#  Zero-infrastructure alternative to notify-bot.yml.
+#
+#  This posts straight to a Discord webhook. The bot does not need to be
+#  running, reachable, or even to exist — which also means the build is NOT
+#  recorded in its database, so /build latest and /build list will not know
+#  about it.
+#
+#  Use this if you do not want to expose an HTTPS endpoint. Use notify-bot.yml
+#  if you want the build history.
+#
+#  Setup:
+#    1. In Discord: Channel settings → Integrations → Webhooks → New Webhook.
+#       Give it the game's name and avatar, then Copy Webhook URL.
+#    2. In the game repo: Settings → Secrets → Actions → New secret
+#         DISCORD_WEBHOOK_URL   the URL you just copied
+#         BUILD_ROLE_ID         (optional) role ID to ping
+# ─────────────────────────────────────────────────────────────
+name: Notify Discord of new build (webhook only)
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to announce
+        required: true
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Post to Discord
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+          ROLE_ID: ${{ secrets.BUILD_ROLE_ID }}
+          VERSION: ${{ github.event.inputs.version || github.event.release.tag_name }}
+          NOTES: ${{ github.event.release.body }}
+          URL: ${{ github.event.release.html_url }}
+        run: |
+          set -euo pipefail
+
+          content=""
+          if [ -n "${ROLE_ID:-}" ]; then content="<@&${ROLE_ID}>"; fi
+
+          # Discord embed descriptions cap at 4096 characters.
+          notes=$(printf '%s' "${NOTES:-}" | head -c 4000)
+
+          payload=$(jq -n \
+            --arg content "$content" \
+            --arg title   "New build: $VERSION" \
+            --arg desc    "$notes" \
+            --arg url     "$URL" \
+            --arg roleId  "${ROLE_ID:-}" \
+            '{
+               content: $content,
+               allowed_mentions: (if $roleId == "" then {parse: []} else {roles: [$roleId]} end),
+               embeds: [
+                 ({ title: $title, color: 16735232 }
+                   + (if $desc == "" then {} else {description: $desc} end)
+                   + (if $url  == "" then {} else {url: $url}          end))
+               ]
+             }')
+
+          curl --fail-with-body --silent --show-error \
+               --retry 3 --retry-delay 5 \
+               -X POST "$WEBHOOK_URL" \
+               -H "Content-Type: application/json" \
+               -d "$payload"

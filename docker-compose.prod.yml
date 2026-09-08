@@ -1,0 +1,41 @@
+# Compose file used ON THE SERVER.
+#
+# The VM never builds the image — GitHub Actions builds it and pushes it to
+# GHCR, and this file only pulls and runs it. That keeps the 1 GB e2-micro out
+# of the build business entirely.
+#
+# On the VM you need exactly two files: this one and .env.
+#
+#   docker compose -f docker-compose.prod.yml pull
+#   docker compose -f docker-compose.prod.yml up -d
+
+services:
+  bot:
+    # Replace OWNER/REPO with your GitHub repository, lowercase.
+    image: ghcr.io/OWNER/REPO:latest
+    container_name: indie-community-bot
+    restart: unless-stopped
+
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      DATABASE_PATH: /data/bot.db
+      HTTP_PORT: 8080
+
+    volumes:
+      # The SQLite database — the only state worth backing up.
+      - bot-data:/data
+
+    ports:
+      # Localhost only. Expose the build webhook to the internet through a
+      # reverse proxy with TLS (see docs/HOSTING-GCP.md), never directly.
+      - "127.0.0.1:8080:8080"
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  bot-data:

@@ -1,0 +1,82 @@
+# ─────────────────────────────────────────────────────────────
+#  Copy this into YOUR GAME'S repository as
+#  .github/workflows/notify-build.yml
+#
+#  It tells the bot a build shipped. The bot then posts the embed, pings the
+#  notification role and records the build, so /build latest works.
+#
+#  Required secrets in the game repo (Settings → Secrets and variables →
+#  Actions):
+#    BOT_WEBHOOK_URL     https://bot.yourdomain.com/hooks/build
+#    BOT_WEBHOOK_SECRET  the same value as WEBHOOK_SECRET in the bot's .env
+#    DISCORD_GUILD_ID    your server's ID (right-click the server → Copy ID,
+#                        with Developer Mode on)
+#
+#  If you would rather not expose the bot over HTTPS, use
+#  notify-discord-webhook.yml instead — it needs no server at all.
+# ─────────────────────────────────────────────────────────────
+name: Notify Discord of new build
+
+on:
+  # Fires when you publish a GitHub Release.
+  release:
+    types: [published]
+
+  # Lets you announce a build by hand from the Actions tab.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to announce
+        required: true
+      channel:
+        description: Release channel
+        required: true
+        default: stable
+        type: choice
+        options: [stable, beta, playtest, nightly]
+      notes:
+        description: Changelog (optional — defaults to the release body)
+        required: false
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Announce the build
+        env:
+          BOT_WEBHOOK_URL: ${{ secrets.BOT_WEBHOOK_URL }}
+          BOT_WEBHOOK_SECRET: ${{ secrets.BOT_WEBHOOK_SECRET }}
+          GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+          VERSION: ${{ github.event.inputs.version || github.event.release.tag_name }}
+          CHANNEL: ${{ github.event.inputs.channel || 'stable' }}
+          NOTES: ${{ github.event.inputs.notes || github.event.release.body }}
+          URL: ${{ github.event.release.html_url }}
+          PLATFORMS: Windows, Linux
+        run: |
+          set -euo pipefail
+
+          # jq builds the JSON so changelogs with quotes, backslashes or
+          # newlines cannot break the payload.
+          payload=$(jq -n \
+            --arg guildId   "$GUILD_ID" \
+            --arg version   "$VERSION" \
+            --arg channel   "$CHANNEL" \
+            --arg notes     "$NOTES" \
+            --arg url       "$URL" \
+            --arg platforms "$PLATFORMS" \
+            '{guildId: $guildId, version: $version, channel: $channel, source: "github"}
+              + (if $notes     == "" then {} else {notes: $notes}         end)
+              + (if $url       == "" then {} else {url: $url}             end)
+              + (if $platforms == "" then {} else {platforms: $platforms} end)')
+
+          echo "Announcing $VERSION on channel $CHANNEL"
+
+          # --fail-with-body so a rejection shows the reason and fails the job.
+          curl --fail-with-body --silent --show-error \
+               --retry 3 --retry-delay 5 --retry-connrefused \
+               --max-time 30 \
+               -X POST "$BOT_WEBHOOK_URL" \
+               -H "Content-Type: application/json" \
+               -H "X-Webhook-Secret: $BOT_WEBHOOK_SECRET" \
+               -d "$payload"

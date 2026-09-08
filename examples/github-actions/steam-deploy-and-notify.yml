@@ -1,0 +1,133 @@
+# ─────────────────────────────────────────────────────────────
+#  Full pipeline sketch: build → upload to Steam → tell Discord.
+#
+#  The build step is engine-specific and left as a placeholder — swap in
+#  game-ci/unity-builder, a Godot export, a `dotnet publish`, whatever you use.
+#  Everything after it is what matters here.
+#
+#  Steam secrets (game repo → Settings → Secrets → Actions):
+#    STEAM_USERNAME       a dedicated builder account, NOT your personal one
+#    STEAM_CONFIG_VDF     see below
+#    STEAM_APP_ID         your app id
+#    STEAM_DEPOT_ID       the depot to upload
+#
+#  STEAM_CONFIG_VDF is how you get past Steam Guard non-interactively:
+#    1. Run `steamcmd +login <builder-account>` once locally and complete 2FA.
+#    2. base64 the resulting config.vdf:
+#         Linux/macOS : base64 -w 0 ~/Steam/config/config.vdf
+#         Windows     : certutil -encode config.vdf out.txt
+#    3. Paste the single-line result as the secret.
+#  Steam invalidates this periodically — if a deploy fails on login, redo it.
+#
+#  Note: Steam has no "build published" webhook of its own. The announcement
+#  fires from this pipeline, right after the upload succeeds.
+# ─────────────────────────────────────────────────────────────
+name: Deploy to Steam and announce
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: Steam branch to set live
+        required: true
+        default: beta
+        type: choice
+        options: [beta, playtest, default]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.version.outputs.value }}
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          lfs: true
+
+      - name: Resolve version
+        id: version
+        run: echo "value=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      # ── Replace this block with your engine's build ──────────
+      - name: Build the game
+        run: |
+          echo "TODO: build here"
+          mkdir -p build/StandaloneWindows64
+          echo placeholder > build/StandaloneWindows64/game.exe
+      # ─────────────────────────────────────────────────────────
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: build
+          path: build/
+          retention-days: 7
+
+  steam:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: build
+          path: build
+
+      - name: Upload to Steam
+        uses: game-ci/steam-deploy@v3
+        with:
+          username: ${{ secrets.STEAM_USERNAME }}
+          configVdf: ${{ secrets.STEAM_CONFIG_VDF }}
+          appId: ${{ secrets.STEAM_APP_ID }}
+          buildDescription: v${{ needs.build.outputs.version }}
+          rootPath: build
+          depot1Path: StandaloneWindows64
+          # Which Steam branch goes live. Leave empty to upload without
+          # publishing, then set it live by hand in Steamworks.
+          releaseBranch: ${{ github.event.inputs.branch || 'beta' }}
+
+  announce:
+    needs: [build, steam]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Tell the Discord bot
+        env:
+          BOT_WEBHOOK_URL: ${{ secrets.BOT_WEBHOOK_URL }}
+          BOT_WEBHOOK_SECRET: ${{ secrets.BOT_WEBHOOK_SECRET }}
+          GUILD_ID: ${{ secrets.DISCORD_GUILD_ID }}
+          VERSION: ${{ needs.build.outputs.version }}
+          CHANNEL: ${{ github.event.inputs.branch || 'beta' }}
+          APP_ID: ${{ secrets.STEAM_APP_ID }}
+        run: |
+          set -euo pipefail
+
+          # Changelog = commit subjects since the previous tag.
+          previous=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || echo "")
+          if [ -n "$previous" ]; then
+            notes=$(git log --pretty='- %s' "$previous"..HEAD)
+          else
+            notes=$(git log --pretty='- %s' -20)
+          fi
+
+          payload=$(jq -n \
+            --arg guildId "$GUILD_ID" \
+            --arg version "$VERSION" \
+            --arg channel "$CHANNEL" \
+            --arg notes   "$notes" \
+            --arg url     "https://store.steampowered.com/app/${APP_ID}/" \
+            '{guildId: $guildId, version: $version, channel: $channel,
+              notes: $notes, url: $url, platforms: "Windows",
+              source: "steam"}')
+
+          curl --fail-with-body --silent --show-error \
+               --retry 3 --retry-delay 5 --retry-connrefused --max-time 30 \
+               -X POST "$BOT_WEBHOOK_URL" \
+               -H "Content-Type: application/json" \
+               -H "X-Webhook-Secret: $BOT_WEBHOOK_SECRET" \
+               -d "$payload"

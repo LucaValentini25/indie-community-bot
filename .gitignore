@@ -1,0 +1,28 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+
+# Secrets — never commit these
+.env
+.env.*
+!.env.example
+
+# Runtime data (SQLite database lives here)
+data/*
+!data/.gitkeep
+
+# Logs
+*.log
+npm-debug.log*
+
+# OS / editor noise
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Locally rendered card previews
+preview/
