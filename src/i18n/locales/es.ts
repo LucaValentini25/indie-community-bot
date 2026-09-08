@@ -114,6 +114,7 @@ export const es: LocaleStrings = {
     openingMessage:
       '{user} gracias por el reporte. {staff} lo va a revisar. Capturas, un video o un archivo de log ayudan muchísimo — podés subirlos en este hilo.',
 
+    closePrompt: '¿Cómo se resolvió?',
     buttonClose: 'Cerrar',
     buttonReopen: 'Reabrir',
     buttonClaim: 'Tomar',

@@ -373,7 +373,7 @@ export async function handleCloseRequest(interaction: ButtonInteraction, ticketI
 
   const select = new StringSelectMenuBuilder()
     .setCustomId(TicketIds.resolve(ticket.id))
-    .setPlaceholder(s('ticket.buttonClose'))
+    .setPlaceholder(s('ticket.closePrompt'))
     .addOptions(
       TICKET_RESOLUTIONS.map((resolution) => ({
         label: s(RESOLUTION_LABEL_KEYS[resolution]),
@@ -382,6 +382,10 @@ export async function handleCloseRequest(interaction: ButtonInteraction, ticketI
     );
 
   await interaction.reply({
+    // Discord rejects a message with no content, embeds or components; a
+    // components-only reply is accepted, but the prompt also tells the user
+    // what the picker is for.
+    content: s('ticket.closePrompt'),
     components: [new ActionRowBuilder<StringSelectMenuBuilder>().addComponents(select)],
     flags: MessageFlags.Ephemeral,
   });

@@ -113,6 +113,7 @@ export const en = {
     openingMessage:
       '{user} thank you for the report. {staff} will take a look. Screenshots, a video or a log file help a lot — you can drop them in this thread.',
 
+    closePrompt: 'How was this resolved?',
     buttonClose: 'Close',
     buttonReopen: 'Reopen',
     buttonClaim: 'Claim',
