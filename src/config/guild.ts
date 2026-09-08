@@ -20,6 +20,8 @@ export interface GuildConfig {
   welcomeEnabled: boolean;
   welcomeChannelId: string | null;
   welcomeRoleId: string | null;
+  /** Artwork for the card. The bytes live on disk; see features/welcome/background.ts. */
+  welcomeBackgroundUrl: string | null;
 
   announceChannelId: string | null;
   devlogChannelId: string | null;
@@ -45,6 +47,7 @@ interface GuildConfigRow {
   welcome_enabled: number;
   welcome_channel_id: string | null;
   welcome_role_id: string | null;
+  welcome_background_url: string | null;
   announce_channel_id: string | null;
   devlog_channel_id: string | null;
   build_channel_id: string | null;
@@ -68,6 +71,7 @@ const COLUMNS = {
   welcomeEnabled: 'welcome_enabled',
   welcomeChannelId: 'welcome_channel_id',
   welcomeRoleId: 'welcome_role_id',
+  welcomeBackgroundUrl: 'welcome_background_url',
   announceChannelId: 'announce_channel_id',
   devlogChannelId: 'devlog_channel_id',
   buildChannelId: 'build_channel_id',
@@ -94,6 +98,7 @@ function toConfig(row: GuildConfigRow): GuildConfig {
     welcomeEnabled: row.welcome_enabled === 1,
     welcomeChannelId: row.welcome_channel_id,
     welcomeRoleId: row.welcome_role_id,
+    welcomeBackgroundUrl: row.welcome_background_url,
     announceChannelId: row.announce_channel_id,
     devlogChannelId: row.devlog_channel_id,
     buildChannelId: row.build_channel_id,

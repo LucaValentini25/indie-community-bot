@@ -2,6 +2,7 @@ import { AttachmentBuilder, type GuildMember, type GuildTextBasedChannel } from 
 import { contextFor, localeRenderers, resolveSendableChannel } from '../../lib/context.js';
 import { createLogger } from '../../core/logger.js';
 import { renderWelcomeCard } from './card.js';
+import { cachedBackground } from './background.js';
 
 const log = createLogger('welcome');
 
@@ -52,6 +53,10 @@ export async function sendWelcome(
       subtitle: renderers[0]!.s('welcome.cardSubtitle', { count: member.guild.memberCount }),
       footer: config.gameName,
       accentColor: config.accentColor,
+      // Prefer the cached file: it renders without touching the network and
+      // survives a Discord attachment URL expiring. The URL is the fallback
+      // for when the cache was lost, e.g. a fresh volume.
+      backgroundUrl: cachedBackground(member.guild.id) ?? config.welcomeBackgroundUrl,
     });
 
     const message = renderers

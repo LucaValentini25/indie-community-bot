@@ -52,7 +52,7 @@ Then, in your server:
 npm run preview:card -- "#FF5C00" "Your Game"
 ```
 
-Writes samples to `preview/`. Drop artwork at `assets/welcome/background.png` (1000×350 or wider) and a `.ttf` in `assets/fonts/` for the game's own typeface — no code changes.
+Writes samples to `preview/`. `assets/welcome/background.png` (1000×350 or wider) is the default artwork for every server, and a `.ttf` in `assets/fonts/` sets the typeface — no code changes. Individual servers override the artwork at runtime with `/welcome background`.
 
 ## Documentation
 

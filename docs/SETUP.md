@@ -94,6 +94,28 @@ Then post the bug panel:
 /bug panel
 ```
 
+### Artwork for the welcome card
+
+`assets/welcome/background.png` is the default every server falls back to. To give one server its own:
+
+```
+/welcome background url:https://raw.githubusercontent.com/you/game/main/art/banner.png
+/welcome background file:[upload an image]
+/welcome background clear:true
+/welcome test
+```
+
+The card is 1000×350, so supply that or wider; anything smaller is stretched.
+
+**Only the link is stored in the database, never the image.** The bytes are cached next to the database on the data volume. That matters for two reasons:
+
+- **Discord attachment links expire.** Since 2023 they are signed and stop resolving after about a day, so a URL copied out of a Discord message would work when you set it and quietly stop the next morning. Caching at set time makes the upload path safe anyway — but for a link you paste, prefer a stable host over a Discord CDN URL.
+- **A join never waits on the network.** The card renders from a local file.
+
+The link is validated when you set it, not when somebody joins: it must be reachable, be served as an image, decode as one, and stay under 8 MB. You get the specific reason immediately rather than discovering a blank card the next time a member arrives.
+
+The **font** is still global — it is registered once at startup from `assets/fonts/`, so it is shared by every server this bot serves.
+
 ### The bot's own look, per server
 
 The bot has **two separate appearances**, and confusing them is the usual mistake:
@@ -196,6 +218,7 @@ Writes sample cards to `preview/`. Drop artwork at `assets/welcome/background.pn
 | `/selfrole list` | Manage Server | The panel's roles, and whether the bot can assign each |
 | `/selfrole panel` | Manage Server | Post the button panel |
 | `/welcome test` | Manage Server | Preview the welcome card |
+| `/welcome background` | Manage Server | Set this server's card artwork, by link or upload |
 | `/announce` | Manage Messages | Post an announcement |
 | `/devlog` | Manage Messages | Post a numbered devlog |
 | `/build announce` | Manage Messages | Announce a build by hand |

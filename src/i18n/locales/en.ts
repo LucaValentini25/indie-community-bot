@@ -126,6 +126,16 @@ export const en = {
     message: 'Hey {user}, welcome to **{guild}**! Take a look at the rules and say hi.',
     messageWithGame: 'Hey {user}, welcome to the **{game}** community! Take a look at the rules and say hi.',
     testSent: 'Preview sent.',
+    backgroundSet: 'Welcome artwork updated for this server.',
+    backgroundPreviewHint: 'Run `/welcome test` to see it.',
+    backgroundCleared: 'Back to the default artwork.',
+    backgroundNothing: 'Pass `url:`, attach a `file:`, or use `clear:true`.',
+    backgroundNotUrl: 'That is not a valid http(s) link.',
+    backgroundUnreachable:
+      'I could not download that image. Check the link is public and direct — a page it sits on will not work, only the image itself.',
+    backgroundNotImage: 'That link does not point at an image.',
+    backgroundTooBig: 'That image is over 8 MB. Resize it — the card is only 1000x350.',
+    backgroundUndecodable: 'I downloaded it but could not read it as an image. PNG, JPG or WebP.',
   },
 
   announce: {
