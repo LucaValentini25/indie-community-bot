@@ -69,12 +69,18 @@ This is the only credential the server needs, and it is read-only. Note the dire
 sudo mkdir -p /opt/bot-prod /opt/bot-dev
 sudo chown "$USER" /opt/bot-prod /opt/bot-dev
 
+# Your repository, lowercase: GHCR rejects uppercase, and GitHub usernames
+# often have some.
+GHCR_REPO="your-username/indie-community-bot"
+
 for d in prod dev; do
   curl -o "/opt/bot-$d/docker-compose.prod.yml" \
-    https://raw.githubusercontent.com/OWNER/REPO/main/docker-compose.prod.yml
-  sed -i 's|ghcr.io/OWNER/REPO|ghcr.io/owner/repo|' "/opt/bot-$d/docker-compose.prod.yml"
+    "https://raw.githubusercontent.com/$GHCR_REPO/main/docker-compose.prod.yml"
+  sed -i "s|ghcr.io/OWNER/REPO|ghcr.io/$GHCR_REPO|" "/opt/bot-$d/docker-compose.prod.yml"
 done
 ```
+
+While the repository is private `raw.githubusercontent.com` will not serve that file. Either copy it across with `scp` or make the repository public first.
 
 Production `.env` — paste as one block, ending with the lone `EOF`:
 
@@ -184,7 +190,7 @@ The gap it does not cover: a build that starts perfectly and is wrong in a way o
 ```bash
 cd /opt/bot-prod
 docker compose -f docker-compose.prod.yml down
-docker tag ghcr.io/owner/repo:<the-good-sha> ghcr.io/owner/repo:latest
+docker tag ghcr.io/$GHCR_REPO:<the-good-sha> ghcr.io/$GHCR_REPO:latest
 docker compose -f docker-compose.prod.yml up -d
 ```
 

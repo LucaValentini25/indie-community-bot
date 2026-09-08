@@ -83,9 +83,12 @@ mkdir -p ~/discord-bot && cd ~/discord-bot
 Create two files. First `docker-compose.prod.yml` — copy it from this repo and **replace `OWNER/REPO`** with your GitHub repository, lowercase:
 
 ```bash
+# Your repository, lowercase: GHCR rejects uppercase.
+GHCR_REPO="your-username/indie-community-bot"
+
 curl -o docker-compose.prod.yml \
-  https://raw.githubusercontent.com/OWNER/REPO/main/docker-compose.prod.yml
-sed -i 's|ghcr.io/OWNER/REPO|ghcr.io/owner/repo|' docker-compose.prod.yml
+  "https://raw.githubusercontent.com/$GHCR_REPO/main/docker-compose.prod.yml"
+sed -i "s|ghcr.io/OWNER/REPO|ghcr.io/$GHCR_REPO|" docker-compose.prod.yml
 ```
 
 Then `.env`:
@@ -254,8 +257,8 @@ free -h && df -h /                        # memory and disk
 **Rollback.** Every deploy also tags the image with the commit SHA:
 
 ```bash
-docker pull ghcr.io/owner/repo:GOOD_SHA
-docker tag  ghcr.io/owner/repo:GOOD_SHA ghcr.io/owner/repo:latest
+docker pull ghcr.io/$GHCR_REPO:GOOD_SHA
+docker tag  ghcr.io/$GHCR_REPO:GOOD_SHA ghcr.io/$GHCR_REPO:latest
 docker compose -f docker-compose.prod.yml up -d
 ```
 
