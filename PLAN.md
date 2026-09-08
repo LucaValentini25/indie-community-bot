@@ -38,7 +38,7 @@ Steps 1–4 need nothing but a laptop. Step 5 onward needs the machine that will
 3. **Design the welcome card.** `npm run preview:card`, drop artwork in `assets/welcome/`, iterate. This is the only piece that needs art direction.
 4. **Push to GitHub** and confirm CI is green.
 5. **Set up the machine.** The bot measures ~125 MB resident, so a spare mini PC or a Raspberry Pi qualifies. It only makes *outbound* connections to Discord, so it needs no static IP, no port forwarding and no domain. For a cloud VM instead, see [docs/HOSTING-ORACLE.md](docs/HOSTING-ORACLE.md) or [docs/HOSTING-GCP.md](docs/HOSTING-GCP.md).
-6. **Wire up deploys** — [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Two Discord applications (dev and prod), two instance directories on the server, and a systemd timer that polls GHCR. After that, `git push` to `main` is the deploy.
+6. **Wire up deploys** — [docs/DEPLOYMENT.md](docs/DEPLOYMENT.md). Two Discord applications: the dev one runs locally, the production one on the server behind a systemd timer that polls GHCR. After that, `git push` to `main` is the deploy.
 7. **Register commands globally** (unset `DISCORD_DEV_GUILD_ID`) and configure the real server.
 8. **Set up the backup cron.**
 

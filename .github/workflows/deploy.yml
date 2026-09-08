@@ -4,16 +4,22 @@ name: Deploy
 # never builds: it only pulls, which keeps a small box out of the build business
 # and makes "what is running" a registry digest rather than a working copy.
 #
-# Two branches, two channels:
-#   dev  → ghcr.io/<repo>:dev      the test bot, in the test Discord server
-#   main → ghcr.io/<repo>:latest   the real bot
+# Only `main` is published. Development happens locally against a test Discord
+# server, so a `dev` image would be built and pulled by nobody — and a
+# multi-arch build under QEMU is slow enough that it is worth not doing.
+# `ci.yml` still builds the image on `dev` (without pushing), so a broken
+# Dockerfile is caught there.
 #
-# How the server picks a new image up is deliberately not decided here — see
-# docs/DEPLOYMENT.md. The default is the server polling GHCR, so nothing needs
-# to be reachable from the internet.
+# To also run a dev instance on the server, add `dev` back to the branches
+# below; the channel is worked out from the branch name already. See
+# docs/DEPLOYMENT.md.
+#
+# How the server picks a new image up is deliberately not decided here. The
+# default is the server polling GHCR, so nothing needs to be reachable from
+# the internet.
 on:
   push:
-    branches: [main, dev]
+    branches: [main]
     paths-ignore:
       - '**.md'
       - 'docs/**'

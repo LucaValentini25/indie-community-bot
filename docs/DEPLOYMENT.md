@@ -1,17 +1,34 @@
-# Deployment: a dev branch, a main branch, and a server that updates itself
-
-Two bots, two branches, one machine:
+# Deployment: develop locally, push to main, the server updates itself
 
 ```
-push to dev ──► Actions builds ──► ghcr.io/you/bot:dev ─────┐
-                                                            │  the server polls
-push to main ─► Actions builds ──► ghcr.io/you/bot:latest ──┤  every 2 minutes
-                                                            │
-                                            /opt/bot-dev  ──┘──► test Discord server
-                                            /opt/bot-prod ─────► real Discord server
+                    your machine                          the server
+                 ┌─────────────────┐                 ┌────────────────┐
+  branch dev  ──►  │ npm run dev      │                 │                │
+                 │ the dev bot      │                 │                │
+                 └───────┬─────────┘                 │                │
+                         ▼                                │                │
+                 a test Discord server                     │                │
+                                                           │                │
+  branch main ─►  Actions builds ─► ghcr.io/…:latest ─►  │ polls, updates │
+                                                           └────────┬───────┘
+                                                                    ▼
+                                                          the real Discord server
 ```
 
-You test on `dev` against a throwaway Discord server. When it works, you merge to `main` and the production bot updates on its own within a couple of minutes — no SSH, nothing exposed to the internet, and an automatic rollback if the new build does not come up healthy.
+You work on `dev` and run the bot on your own machine against a throwaway
+Discord server. When a feature holds up, you merge to `main`; the server picks
+the new image up on its own within a couple of minutes — no SSH, nothing
+exposed to the internet, and an automatic rollback if it does not come up
+healthy.
+
+The server only ever runs `main`. That is why `deploy.yml` publishes only
+`:latest`: a `:dev` image would be built by a slow multi-arch job and pulled by
+nobody. `ci.yml` still builds the image on `dev` without pushing it, so a
+broken Dockerfile is caught before it reaches `main`.
+
+> **Running dev on the server too?** Add `dev` back to the branches in
+> `deploy.yml` and follow [Two instances on one server](#two-instances-on-one-server)
+> at the end. Everything else is identical.
 
 ---
 
@@ -19,22 +36,70 @@ You test on `dev` against a throwaway Discord server. When it works, you merge t
 
 Not two servers — two **applications**, each with its own token.
 
-A bot token is one identity holding one gateway connection. Run the same token in two places and both instances receive every event from every server they are in, and both answer: two welcome cards, two replies to a slash command, two threads per bug report. It is not a configuration you can tune around; the token is the identity.
+A bot token is one identity holding one gateway connection. Run the same token
+in two places and both instances receive every event from every server they are
+in, and both answer: two welcome cards, two replies to a slash command, two
+threads per bug report. It is not a configuration you can tune around; the
+token is the identity.
 
-So, in the [Developer Portal](https://discord.com/developers/applications), create a second application alongside the real one:
+So, in the [Developer Portal](https://discord.com/developers/applications),
+create a second application alongside the real one:
 
-| | Production | Development |
+| | Development | Production |
 |---|---|---|
-| Application | `Your Game Bot` | `Your Game Bot (dev)` |
-| Invited to | the real community | a throwaway server you own |
-| Token | `DISCORD_TOKEN` in `/opt/bot-prod/.env` | `DISCORD_TOKEN` in `/opt/bot-dev/.env` |
-| `DISCORD_DEV_GUILD_ID` | **unset** — commands register globally | the test server's id |
+| Application | `Your Game Bot (dev)` | `Your Game Bot` |
+| Runs on | your machine, `npm run dev` | the server, in Docker |
+| Invited to | a throwaway server you own | the real community |
+| Token lives in | `.env` in your working copy | `/opt/bot-prod/.env` |
+| `DISCORD_DEV_GUILD_ID` | the test server's id | **unset** — commands register globally |
 
-Both need the **Server Members Intent** enabled (Bot → Privileged Gateway Intents). It is easy to remember for the real one and easy to forget for the test one, and forgetting it means welcome cards silently never fire — which is exactly the bug you were hoping to catch on `dev`.
+Both need the **Server Members Intent** enabled (Bot → Privileged Gateway
+Intents). It is easy to remember for the real one and easy to forget for the
+test one, and forgetting it means welcome cards silently never fire — exactly
+the bug the test server exists to catch.
 
-**`DISCORD_DEV_GUILD_ID` is why dev is pleasant to work with.** Set it, and slash commands register to that one server and appear instantly. Leave it unset in production and they register globally, which is correct but takes up to an hour to propagate. Same code, same image, different environment variable.
+**`DISCORD_DEV_GUILD_ID` is why dev is pleasant to work with.** Set it, and
+slash commands register to that one server and appear instantly. Leave it unset
+in production and they register globally, which is correct but takes up to an
+hour to propagate. Same code, different environment variable.
 
 ---
+
+## Part 1 — Your machine
+
+```bash
+cp .env.example .env
+```
+
+Fill in the **development** application's token and id, and your test server's
+id (Discord → enable Developer Mode, then right-click the server → Copy Server
+ID):
+
+```ini
+DISCORD_TOKEN=the-development-token
+DISCORD_CLIENT_ID=the-development-application-id
+DISCORD_DEV_GUILD_ID=your-test-server-id
+DEFAULT_LOCALE=es
+```
+
+Then:
+
+```bash
+npm install
+npm run commands:deploy   # registers the slash commands to the test server
+npm run dev               # starts the bot with hot reload
+```
+
+`commands:deploy` is not automatic. Run it again whenever you add a command,
+rename one, or change its options — editing what a command *does* only needs a
+restart, which `npm run dev` does for you.
+
+The `BOT_INSTANCE`, `BOT_CHANNEL` and `HOST_PORT` entries in `.env.example` are
+read only by `docker-compose.prod.yml` on a server. Ignore them here.
+
+---
+
+## Part 2 — The server
 
 ## 1. Prepare the server
 
@@ -63,26 +128,23 @@ echo "YOUR_PAT" | docker login ghcr.io -u YOUR_GITHUB_USERNAME --password-stdin
 
 This is the only credential the server needs, and it is read-only. Note the direction: the server pulls from GitHub. GitHub is never given a key to your machine.
 
-## 3. Create the two instances
+## 3. Create the instance
 
 ```bash
-sudo mkdir -p /opt/bot-prod /opt/bot-dev
-sudo chown "$USER" /opt/bot-prod /opt/bot-dev
+sudo mkdir -p /opt/bot-prod
+sudo chown "$USER" /opt/bot-prod
 
 # Your repository, lowercase: GHCR rejects uppercase, and GitHub usernames
 # often have some.
 GHCR_REPO="your-username/indie-community-bot"
 
-for d in prod dev; do
-  curl -o "/opt/bot-$d/docker-compose.prod.yml" \
-    "https://raw.githubusercontent.com/$GHCR_REPO/main/docker-compose.prod.yml"
-  sed -i "s|ghcr.io/OWNER/REPO|ghcr.io/$GHCR_REPO|" "/opt/bot-$d/docker-compose.prod.yml"
-done
+curl -o /opt/bot-prod/docker-compose.prod.yml   "https://raw.githubusercontent.com/$GHCR_REPO/main/docker-compose.prod.yml"
+sed -i "s|ghcr.io/OWNER/REPO|ghcr.io/$GHCR_REPO|" /opt/bot-prod/docker-compose.prod.yml
 ```
 
 While the repository is private `raw.githubusercontent.com` will not serve that file. Either copy it across with `scp` or make the repository public first.
 
-Production `.env` — paste as one block, ending with the lone `EOF`:
+Now `.env`, with the **production** application's token. Paste it as one block, ending with the lone `EOF`:
 
 ```bash
 cat > /opt/bot-prod/.env <<'EOF'
@@ -100,25 +162,9 @@ EOF
 chmod 600 /opt/bot-prod/.env
 ```
 
-Development `.env` — different token, different channel, different port, and `DISCORD_DEV_GUILD_ID` set:
+Generate the secret with `openssl rand -hex 32`.
 
-```bash
-cat > /opt/bot-dev/.env <<'EOF'
-BOT_INSTANCE=dev
-BOT_CHANNEL=dev
-HOST_PORT=8081
-
-DISCORD_TOKEN=the-development-token
-DISCORD_CLIENT_ID=the-development-application-id
-DISCORD_DEV_GUILD_ID=your-test-server-id
-NODE_ENV=production
-LOG_LEVEL=debug
-DEFAULT_LOCALE=es
-EOF
-chmod 600 /opt/bot-dev/.env
-```
-
-Generate the secret with `openssl rand -hex 32`. Compose names the volume after the directory, so `/opt/bot-prod` and `/opt/bot-dev` get separate databases with no further configuration — **the test bot can never write to production data.**
+**Leave `DISCORD_DEV_GUILD_ID` out.** Here it must be unset so commands register globally; setting it would confine the real bot's commands to one server.
 
 ## 4. Install the updater
 
@@ -129,10 +175,11 @@ sudo cp deploy/bot-update@.service deploy/bot-update@.timer /etc/systemd/system/
 
 sudo systemctl daemon-reload
 sudo systemctl enable --now bot-update@prod.timer
-sudo systemctl enable --now bot-update@dev.timer
 ```
 
-That is the whole mechanism. Every two minutes each timer asks GHCR whether the tag it follows points at a new digest; almost always the answer is no and it exits immediately.
+That is the whole mechanism. Every two minutes the timer asks GHCR whether `:latest` points at a new digest; almost always the answer is no and it exits immediately.
+
+The units are templates, so `@prod` is what binds this one to `/opt/bot-prod`. A second instance is the same two files with a different name after the `@`.
 
 Strongly recommended, since the point of this is not having to watch it — a Discord webhook to be told when a deploy fails:
 
@@ -145,16 +192,18 @@ sudo chmod 600 /opt/bot-prod/deploy.env
 ## 5. First start and command registration
 
 ```bash
-cd /opt/bot-prod && docker compose -f docker-compose.prod.yml up -d
+cd /opt/bot-prod
+docker compose -f docker-compose.prod.yml up -d
 docker compose -f docker-compose.prod.yml logs -f      # watch it connect
 ```
 
-Register the slash commands once per application — this does not happen on start, so a new or renamed command needs it again:
+Register the slash commands. This does not happen on start, so run it again after adding or renaming one:
 
 ```bash
-cd /opt/bot-prod && docker compose -f docker-compose.prod.yml run --rm --no-deps bot node dist/scripts/deploy-commands.js
-cd /opt/bot-dev  && docker compose -f docker-compose.prod.yml run --rm --no-deps bot node dist/scripts/deploy-commands.js
+docker compose -f docker-compose.prod.yml run --rm --no-deps bot node dist/scripts/deploy-commands.js
 ```
+
+Because `DISCORD_DEV_GUILD_ID` is unset here, these register globally and can take up to an hour to appear.
 
 ---
 
@@ -163,9 +212,10 @@ cd /opt/bot-dev  && docker compose -f docker-compose.prod.yml run --rm --no-deps
 ```bash
 git switch -c my-feature dev
 # ... work ...
-git switch dev && git merge my-feature && git push      # → test bot updates in ~2 min
-# ... try it in the test server ...
-git switch main && git merge dev && git push            # → real bot updates in ~2 min
+npm run dev                                        # try it in the test server
+
+git switch dev && git merge my-feature && git push  # CI runs; nothing deploys
+git switch main && git merge dev && git push        # the server updates in ~2 min
 ```
 
 Watch a rollout:
@@ -233,6 +283,25 @@ chmod +x ~/backup-bot.sh
 ```
 
 Keeps the last 14 nightly snapshots. Copy them off the machine periodically — a backup on the same disk is not a backup.
+
+## Two instances on one server
+
+If you would rather run the dev bot on the server than on your own machine —
+so it stays up while your laptop is closed — the pieces are already there:
+
+1. Add `dev` back to the branches in `.github/workflows/deploy.yml`, so `:dev`
+   gets published.
+2. Repeat step 3 for `/opt/bot-dev`, with the **development** token,
+   `BOT_CHANNEL=dev`, `HOST_PORT=8081` and `DISCORD_DEV_GUILD_ID` set.
+3. `sudo systemctl enable --now bot-update@dev.timer`.
+
+Compose names the volume after the directory, so the two get separate databases
+with no further configuration — **the test bot can never write to production
+data.** The host ports must differ; the port inside the container is always
+8080.
+
+The cost is a slow multi-arch build on every `dev` push, which is why it is not
+the default.
 
 ## Troubleshooting
 

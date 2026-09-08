@@ -59,7 +59,7 @@ Writes samples to `preview/`. `assets/welcome/background.png` (1000×350 or wide
 | | |
 |---|---|
 | **[SETUP.md](docs/SETUP.md)** | Discord app, intents, invite, first run, command reference, troubleshooting |
-| **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** | A dev branch on a test server, main on the real one, and a server that updates itself from GHCR with automatic rollback |
+| **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** | Develop locally against a test server, push to main, and let the server update itself from GHCR with automatic rollback |
 | **[HOSTING-ORACLE.md](docs/HOSTING-ORACLE.md)** | Free 24/7 hosting on Oracle Cloud Always Free — no accidental billing, 4 ARM cores |
 | **[HOSTING-GCP.md](docs/HOSTING-GCP.md)** | The same on a Google Cloud e2-micro |
 | **[BUILD-NOTIFICATIONS.md](docs/BUILD-NOTIFICATIONS.md)** | Three ways to announce a build, the webhook API, Steam and itch.io |
