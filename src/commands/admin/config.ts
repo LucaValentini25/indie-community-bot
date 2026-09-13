@@ -72,6 +72,42 @@ const command: Command = {
             .setName('bugs')
             .setDescription('Where the bug panel lives and report threads are created')
             .addChannelTypes(ChannelType.GuildText),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName('welcome_secondary')
+            .setDescription('Second language goes here instead of sharing the welcome channel')
+            .setDescriptionLocalizations({
+              'es-ES': 'El segundo idioma va acá en vez de compartir el canal de bienvenida',
+            })
+            .addChannelTypes(ChannelType.GuildText),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName('announcements_secondary')
+            .setDescription('Second language goes here instead of sharing the announcements channel')
+            .setDescriptionLocalizations({
+              'es-ES': 'El segundo idioma va acá en vez de compartir el canal de anuncios',
+            })
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName('devlogs_secondary')
+            .setDescription('Second language goes here instead of sharing the devlog channel')
+            .setDescriptionLocalizations({
+              'es-ES': 'El segundo idioma va acá en vez de compartir el canal de devlogs',
+            })
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement),
+        )
+        .addChannelOption((option) =>
+          option
+            .setName('builds_secondary')
+            .setDescription('Second language goes here instead of sharing the builds channel')
+            .setDescriptionLocalizations({
+              'es-ES': 'El segundo idioma va acá en vez de compartir el canal de builds',
+            })
+            .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement),
         ),
     )
     .addSubcommand((sub) =>
@@ -167,6 +203,10 @@ const command: Command = {
               { name: 'Staff role', value: 'ticketStaffRoleId' },
               { name: 'Game name', value: 'gameName' },
               { name: 'Second language', value: 'secondaryLocale' },
+              { name: 'Welcome channel (2nd language)', value: 'welcomeChannelSecondaryId' },
+              { name: 'Announcements channel (2nd language)', value: 'announceChannelSecondaryId' },
+              { name: 'Devlog channel (2nd language)', value: 'devlogChannelSecondaryId' },
+              { name: 'Builds channel (2nd language)', value: 'buildChannelSecondaryId' },
               { name: 'Server avatar', value: 'serverAvatar' },
               { name: 'Server banner', value: 'serverBanner' },
               { name: 'Server nickname', value: 'serverNickname' },
@@ -243,6 +283,15 @@ const command: Command = {
       collect(patch, changed, 'devlogChannelId', interaction.options.getChannel('devlogs')?.id, 'Devlogs');
       collect(patch, changed, 'buildChannelId', interaction.options.getChannel('builds')?.id, 'Builds');
       collect(patch, changed, 'ticketChannelId', interaction.options.getChannel('bugs')?.id, 'Bug reports');
+
+      for (const [option, field, label] of [
+        ['welcome_secondary', 'welcomeChannelSecondaryId', 'Welcome (2nd language)'],
+        ['announcements_secondary', 'announceChannelSecondaryId', 'Announcements (2nd language)'],
+        ['devlogs_secondary', 'devlogChannelSecondaryId', 'Devlogs (2nd language)'],
+        ['builds_secondary', 'buildChannelSecondaryId', 'Builds (2nd language)'],
+      ] as const) {
+        collect(patch, changed, field, interaction.options.getChannel(option)?.id, label);
+      }
 
       // Setting a welcome channel with the feature still off is almost always
       // a mistake, so turn it on for them.
@@ -429,6 +478,10 @@ function collect(
 function configEmbed(config: GuildConfig, guild: Guild, s: Translate) {
   const channel = (id: string | null) => (id ? `<#${id}>` : s('common.notSet'));
   const role = (id: string | null) => (id ? `<@&${id}>` : s('common.notSet'));
+  // Only when set: unset means the second language shares the channel above,
+  // which is the default and needs no line of its own.
+  const secondary = (label: string, id: string | null) =>
+    id ? [`**${label} ${s('config.fieldSecondaryChannel')}:** ${channel(id)}`] : [];
 
   return brandedEmbed(config)
     .setTitle(s('config.title'))
@@ -448,6 +501,7 @@ function configEmbed(config: GuildConfig, guild: Guild, s: Translate) {
         value: [
           `**${s('config.fieldWelcomeEnabled')}:** ${config.welcomeEnabled ? s('common.enabled') : s('common.disabled')}`,
           `**${s('config.fieldWelcomeChannel')}:** ${channel(config.welcomeChannelId)}`,
+          ...secondary(s('config.fieldWelcomeChannel'), config.welcomeChannelSecondaryId),
           `**${s('config.fieldWelcomeRole')}:** ${role(config.welcomeRoleId)}`,
         ].join('\n'),
       },
@@ -455,13 +509,16 @@ function configEmbed(config: GuildConfig, guild: Guild, s: Translate) {
         name: s('config.sectionContent'),
         value: [
           `**${s('config.fieldAnnounceChannel')}:** ${channel(config.announceChannelId)}`,
+          ...secondary(s('config.fieldAnnounceChannel'), config.announceChannelSecondaryId),
           `**${s('config.fieldDevlogChannel')}:** ${channel(config.devlogChannelId)}`,
+          ...secondary(s('config.fieldDevlogChannel'), config.devlogChannelSecondaryId),
         ].join('\n'),
       },
       {
         name: s('config.sectionBuilds'),
         value: [
           `**${s('config.fieldBuildChannel')}:** ${channel(config.buildChannelId)}`,
+          ...secondary(s('config.fieldBuildChannel'), config.buildChannelSecondaryId),
           `**${s('config.fieldBuildRole')}:** ${role(config.buildRoleId)}`,
         ].join('\n'),
       },
@@ -510,6 +567,24 @@ async function checkEmbed(guild: Guild, config: GuildConfig, s: Translate) {
       extra: [PermissionFlagsBits.CreatePrivateThreads, PermissionFlagsBits.SendMessagesInThreads],
     },
   ];
+
+  // Second-language channels are checked only when set. Unset is not
+  // "missing": it means that language shares the primary channel. A set but
+  // unusable one matters more than it looks, because publishing is all or
+  // nothing — it blocks the primary language too.
+  const secondaries = [
+    {
+      label: s('config.fieldWelcomeChannel'),
+      id: config.welcomeEnabled ? config.welcomeChannelSecondaryId : null,
+      extra: [PermissionFlagsBits.AttachFiles],
+    },
+    { label: s('config.fieldAnnounceChannel'), id: config.announceChannelSecondaryId },
+    { label: s('config.fieldDevlogChannel'), id: config.devlogChannelSecondaryId },
+    { label: s('config.fieldBuildChannel'), id: config.buildChannelSecondaryId },
+  ];
+  for (const target of secondaries) {
+    if (target.id) targets.push({ ...target, label: `${target.label} ${s('config.fieldSecondaryChannel')}` });
+  }
 
   const lines: string[] = [];
 

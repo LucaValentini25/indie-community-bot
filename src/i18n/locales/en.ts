@@ -49,6 +49,7 @@ export const en = {
     checkDescription: 'Everything the bot needs in order to work in this server.',
     checkOk: 'Ready',
     checkMissing: 'Not configured',
+    fieldSecondaryChannel: '(2nd language)',
     checkNoPermission: 'Configured, but I lack permissions',
     fieldServerAvatar: 'Server avatar',
     fieldServerBanner: 'Server banner',

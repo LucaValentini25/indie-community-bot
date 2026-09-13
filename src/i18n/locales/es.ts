@@ -49,6 +49,7 @@ export const es: LocaleStrings = {
     checkDescription: 'Todo lo que el bot necesita para funcionar en este servidor.',
     checkOk: 'Listo',
     checkMissing: 'Sin configurar',
+    fieldSecondaryChannel: '(2º idioma)',
     checkNoPermission: 'Configurado, pero me faltan permisos',
     fieldServerAvatar: 'Avatar del servidor',
     fieldServerBanner: 'Portada del servidor',

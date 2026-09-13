@@ -86,6 +86,18 @@ Two things happen automatically and need no configuration:
 
 To post in one language only, pass `language:` to `/announce` or `/devlog`. To go back to monolingual: `/config reset setting:Second language`.
 
+#### One channel per language
+
+By default both languages share a channel. If the server runs them side by side instead — `#anuncios` next to `#announcements` — give the second language its own channel:
+
+```
+/config channels announcements_secondary:#announcements devlogs_secondary:#devlogs-en builds_secondary:#builds-en welcome_secondary:#welcome-en
+```
+
+Each option is independent, so you can split announcements and keep builds shared. With a channel set, each language goes out as its own message in its own channel, and the welcome card is drawn once per language. Bug threads are the exception: a thread already speaks the reporter's language and has to live in one channel.
+
+Publishing is **all or nothing**. Both channels are checked before anything is sent, so a devlog never goes out in one language only — if the second channel is unusable, neither message is posted and `/config check` shows which channel is at fault. To go back to sharing: `/config reset setting:Announcements channel (2nd language)` (and likewise for the others).
+
 `/config check` walks every channel and role and reports what the bot can actually do. It is the first thing to run when something is not posting — a missing permission shows up as a red line instead of silence.
 
 Then post the bug panel:

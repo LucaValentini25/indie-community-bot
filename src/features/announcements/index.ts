@@ -5,8 +5,7 @@ import {
   contextFor,
   contextForUser,
   describeChannelFailure,
-  localeRenderers,
-  resolveSendableChannel,
+  resolvePublicationTargets,
 } from '../../lib/context.js';
 import { createLogger } from '../../core/logger.js';
 import { isHttpUrl, truncate } from '../../lib/text.js';
@@ -61,87 +60,115 @@ export async function publishPost(guild: Guild, input: PostInput): Promise<PostR
   const channelId =
     input.kind === 'devlog' ? (config.devlogChannelId ?? config.announceChannelId) : config.announceChannelId;
 
-  const lookup = await resolveSendableChannel(guild, channelId);
-  if (!lookup.ok) return { ok: false, message: describeChannelFailure(lookup, s) };
+  const secondaryChannelId =
+    input.kind === 'devlog'
+      ? (config.devlogChannelSecondaryId ?? config.announceChannelSecondaryId)
+      : config.announceChannelSecondaryId;
 
-  const renderers = localeRenderers(config).filter((renderer) => input.content[renderer.locale]);
+  const resolved = await resolvePublicationTargets(guild, config, channelId, secondaryChannelId);
+  if (!resolved.ok) return { ok: false, message: describeChannelFailure(resolved.failure, s) };
 
-  if (renderers.length === 0) return { ok: false, message: s('announce.noContent') };
+  // Drop languages with no text, and then any target left carrying none.
+  const targets = resolved.targets
+    .map((target) => ({
+      ...target,
+      renderers: target.renderers.filter((renderer) => input.content[renderer.locale]),
+    }))
+    .filter((target) => target.renderers.length > 0);
+
+  if (targets.length === 0) return { ok: false, message: s('announce.noContent') };
 
   // One number for the post, not one per language: a bilingual devlog is one
   // devlog.
   const number = input.kind === 'devlog' ? nextPostNumber(guild.id, 'devlog') : 0;
 
-  const embeds = renderers.map((renderer, index) => {
-    const content = input.content[renderer.locale]!;
-    const isLast = index === renderers.length - 1;
+  const sent: { channelId: string; messageId: string }[] = [];
 
-    const embed = brandedEmbed(config)
-      .setTitle(
-        truncate(
-          input.kind === 'devlog'
-            ? renderer.s('announce.devlogTitle', { number, title: content.title })
-            : content.title,
-          256,
-        ),
-      )
-      .setDescription(truncate(content.body, 4000));
+  for (const target of targets) {
+    const renderers = target.renderers;
+    const embeds = renderers.map((renderer, index) => {
+      const content = input.content[renderer.locale]!;
+      const isLast = index === renderers.length - 1;
 
-    // The language heading only earns its place when there is more than one.
-    if (renderers.length > 1) embed.setAuthor({ name: renderer.label });
+      const embed = brandedEmbed(config)
+        .setTitle(
+          truncate(
+            input.kind === 'devlog'
+              ? renderer.s('announce.devlogTitle', { number, title: content.title })
+              : content.title,
+            256,
+          ),
+        )
+        .setDescription(truncate(content.body, 4000));
 
-    // Timestamp, image and footer go on the last embed only, so the message
-    // reads as one post rather than two stacked copies of the same metadata.
-    if (isLast) {
-      embed.setTimestamp(new Date()).setFooter({
-        text: `${renderer.s(
-          input.kind === 'devlog' ? 'announce.devlogFooter' : 'announce.announcementFooter',
-        )}${config.gameName ? ` · ${config.gameName}` : ''}`,
-        iconURL: input.author.displayAvatarURL({ extension: 'png', size: 64 }),
-      });
+      // The language heading only earns its place when there is more than one.
+      if (renderers.length > 1) embed.setAuthor({ name: renderer.label });
 
-      if (input.imageUrl && isHttpUrl(input.imageUrl)) embed.setImage(input.imageUrl);
-    }
+      // Timestamp, image and footer go on the last embed only, so the message
+      // reads as one post rather than two stacked copies of the same metadata.
+      if (isLast) {
+        embed.setTimestamp(new Date()).setFooter({
+          text: `${renderer.s(
+            input.kind === 'devlog' ? 'announce.devlogFooter' : 'announce.announcementFooter',
+          )}${config.gameName ? ` · ${config.gameName}` : ''}`,
+          iconURL: input.author.displayAvatarURL({ extension: 'png', size: 64 }),
+        });
 
-    return embed;
-  });
+        if (input.imageUrl && isHttpUrl(input.imageUrl)) embed.setImage(input.imageUrl);
+      }
 
-  const message = await lookup.channel.send({
-    content: input.ping ? '@everyone' : undefined,
-    embeds,
-    // Without this, any @mention typed into the body would fire. The ping is
-    // opt-in and explicit.
-    allowedMentions: input.ping ? { parse: ['everyone'] } : { parse: [] },
-  });
+      return embed;
+    });
+
+    const message = await target.channel.send({
+      content: input.ping ? '@everyone' : undefined,
+      embeds,
+      // Without this, any @mention typed into the body would fire. The ping is
+      // opt-in and explicit.
+      allowedMentions: input.ping ? { parse: ['everyone'] } : { parse: [] },
+    });
+
+    sent.push({ channelId: target.channel.id, messageId: message.id });
+  }
 
   // The audit row stores the primary-language title. It exists to answer "what
   // did we post and when", not to be a second copy of the content.
-  const primaryTitle = input.content[config.locale]?.title ?? input.content[renderers[0]!.locale]!.title;
+  const primaryTitle =
+    input.content[config.locale]?.title ?? input.content[targets[0]!.renderers[0]!.locale]!.title;
 
-  db.prepare(
+  // One row per message. A split post is two messages, and the audit trail is
+  // only useful if it can point at each of them.
+  const insert = db.prepare(
     `INSERT INTO posts (guild_id, kind, author_id, channel_id, message_id, title, created_at)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    guild.id,
-    input.kind,
-    input.author.id,
-    lookup.channel.id,
-    message.id,
-    truncate(primaryTitle, 200),
-    Date.now(),
   );
+
+  for (const row of sent) {
+    insert.run(
+      guild.id,
+      input.kind,
+      input.author.id,
+      row.channelId,
+      row.messageId,
+      truncate(primaryTitle, 200),
+      Date.now(),
+    );
+  }
 
   log.info(
     {
       guild: guild.id,
       kind: input.kind,
-      message: message.id,
-      locales: renderers.map((renderer) => renderer.locale),
+      messages: sent.map((row) => row.messageId),
+      channels: sent.map((row) => row.channelId),
+      locales: targets.flatMap((target) => target.renderers.map((renderer) => renderer.locale)),
     },
     'post published',
   );
 
-  return { ok: true, channelId: lookup.channel.id, messageId: message.id };
+  // The reply points at the first message; with a split post that is the
+  // primary language, which is the one the author wrote first.
+  return { ok: true, channelId: sent[0]!.channelId, messageId: sent[0]!.messageId };
 }
 
 function nextPostNumber(guildId: string, kind: PostKind): number {

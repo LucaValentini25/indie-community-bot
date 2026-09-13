@@ -26,6 +26,15 @@ export interface GuildConfig {
   announceChannelId: string | null;
   devlogChannelId: string | null;
 
+  /**
+   * Where the secondary language goes instead. NULL means it shares the
+   * channel above, as one message with an embed per language.
+   */
+  announceChannelSecondaryId: string | null;
+  devlogChannelSecondaryId: string | null;
+  buildChannelSecondaryId: string | null;
+  welcomeChannelSecondaryId: string | null;
+
   buildChannelId: string | null;
   buildRoleId: string | null;
 
@@ -50,6 +59,10 @@ interface GuildConfigRow {
   welcome_background_url: string | null;
   announce_channel_id: string | null;
   devlog_channel_id: string | null;
+  announce_channel_secondary_id: string | null;
+  devlog_channel_secondary_id: string | null;
+  build_channel_secondary_id: string | null;
+  welcome_channel_secondary_id: string | null;
   build_channel_id: string | null;
   build_role_id: string | null;
   ticket_channel_id: string | null;
@@ -74,6 +87,10 @@ const COLUMNS = {
   welcomeBackgroundUrl: 'welcome_background_url',
   announceChannelId: 'announce_channel_id',
   devlogChannelId: 'devlog_channel_id',
+  announceChannelSecondaryId: 'announce_channel_secondary_id',
+  devlogChannelSecondaryId: 'devlog_channel_secondary_id',
+  buildChannelSecondaryId: 'build_channel_secondary_id',
+  welcomeChannelSecondaryId: 'welcome_channel_secondary_id',
   buildChannelId: 'build_channel_id',
   buildRoleId: 'build_role_id',
   ticketChannelId: 'ticket_channel_id',
@@ -101,6 +118,10 @@ function toConfig(row: GuildConfigRow): GuildConfig {
     welcomeBackgroundUrl: row.welcome_background_url,
     announceChannelId: row.announce_channel_id,
     devlogChannelId: row.devlog_channel_id,
+    announceChannelSecondaryId: row.announce_channel_secondary_id,
+    devlogChannelSecondaryId: row.devlog_channel_secondary_id,
+    buildChannelSecondaryId: row.build_channel_secondary_id,
+    welcomeChannelSecondaryId: row.welcome_channel_secondary_id,
     buildChannelId: row.build_channel_id,
     buildRoleId: row.build_role_id,
     ticketChannelId: row.ticket_channel_id,

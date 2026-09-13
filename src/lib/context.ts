@@ -76,6 +76,62 @@ export function localeRenderers(config: GuildConfig): LocaleRenderer[] {
   }));
 }
 
+/**
+ * One message of a public post: the channel it goes to, and the languages it
+ * carries.
+ */
+export interface PublicationTarget {
+  readonly channel: GuildTextBasedChannel;
+  readonly renderers: LocaleRenderer[];
+}
+
+/**
+ * Works out how a public post is split across channels, and resolves each one.
+ *
+ * With no secondary channel configured this is a single target carrying every
+ * language — one message, one embed per language, which stays the default. Set
+ * one and each language gets its own message in its own channel, for a server
+ * running #anuncios and #announcements side by side.
+ *
+ * **All or nothing.** Every channel is resolved before anything is sent, and
+ * one unusable channel fails the whole publication: a devlog that went out in
+ * Spanish but not English is worse than one that did not go out at all, and it
+ * cannot be undone by the time the second send fails.
+ */
+export async function resolvePublicationTargets(
+  guild: Guild,
+  config: GuildConfig,
+  primaryChannelId: string | null,
+  secondaryChannelId: string | null,
+  required?: PermissionResolvable[],
+): Promise<
+  { ok: true; targets: PublicationTarget[] } | { ok: false; failure: Extract<ChannelLookup, { ok: false }> }
+> {
+  const renderers = localeRenderers(config);
+
+  const primary = await resolveSendableChannel(guild, primaryChannelId, required);
+  if (!primary.ok) return { ok: false, failure: primary };
+
+  // Nothing to split: monolingual, or the secondary language shares the
+  // channel. Setting a secondary channel on a monolingual server is harmless
+  // rather than an error — it starts working if a second language is added.
+  const split =
+    renderers.length > 1 && secondaryChannelId !== null && secondaryChannelId !== primary.channel.id;
+
+  if (!split) return { ok: true, targets: [{ channel: primary.channel, renderers }] };
+
+  const secondary = await resolveSendableChannel(guild, secondaryChannelId, required);
+  if (!secondary.ok) return { ok: false, failure: secondary };
+
+  return {
+    ok: true,
+    targets: [
+      { channel: primary.channel, renderers: [renderers[0]!] },
+      { channel: secondary.channel, renderers: [renderers[1]!] },
+    ],
+  };
+}
+
 /** An embed pre-tinted with the guild's accent color. */
 export function brandedEmbed(config: GuildConfig): EmbedBuilder {
   return new EmbedBuilder().setColor(parseHexColor(config.accentColor) ?? FALLBACK_COLOR);
