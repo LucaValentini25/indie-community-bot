@@ -1,0 +1,24 @@
+# Serverless variant of the bot: slash commands, buttons and modals over
+# Discord's HTTP interactions endpoint, running on Cloudflare's free plan.
+# See docs/HOSTING-CLOUDFLARE.md for the step-by-step.
+
+name = "indie-community-bot"
+main = "src/index.ts"
+compatibility_date = "2026-06-01"
+
+[vars]
+# Language used for a server that has not picked one yet: "en" or "es".
+DEFAULT_LOCALE = "en"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "indie-community-bot"
+# Replace with the id printed by `npx wrangler d1 create indie-community-bot`.
+# Yours, not the maintainer's: an id from another account will not deploy.
+database_id = "00000000-0000-0000-0000-000000000000"
+migrations_dir = "migrations"
+
+# Secrets are not listed here on purpose. Set them once with:
+#   npx wrangler secret put DISCORD_TOKEN
+#   npx wrangler secret put DISCORD_PUBLIC_KEY
+#   npx wrangler secret put WEBHOOK_SECRET     (optional, for CI build hooks)

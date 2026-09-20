@@ -1,0 +1,12 @@
+# Secrets for `npm run worker:dev`. Copy to `.dev.vars` (which git ignores).
+# In production these are set with `wrangler secret put` instead — see
+# docs/HOSTING-CLOUDFLARE.md.
+
+# Developer Portal → Bot → Token
+DISCORD_TOKEN=
+
+# Developer Portal → General Information → Public Key
+DISCORD_PUBLIC_KEY=
+
+# Any random string of 16+ characters. Only needed for POST /hooks/build.
+WEBHOOK_SECRET=

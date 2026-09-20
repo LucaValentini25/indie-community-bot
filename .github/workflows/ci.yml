@@ -42,6 +42,21 @@ jobs:
       - name: Validate slash command definitions
         run: node scripts/validate-commands.mjs
 
+      # The serverless variant. The smoke test runs the whole Worker against a
+      # fake D1 and a fake Discord, so it needs no secrets.
+      - name: Typecheck the Worker
+        run: npm run worker:typecheck
+
+      - name: Test the Worker
+        run: npm run worker:test
+
+      # worker/migrations is generated from src/db/migrations.ts. A migration
+      # added there without regenerating would ship a Worker with an old schema.
+      - name: Check Worker migrations are up to date
+        run: |
+          npm run worker:migrations
+          git diff --exit-code worker/migrations
+
   docker:
     name: Build container image
     runs-on: ubuntu-latest

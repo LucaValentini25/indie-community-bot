@@ -3,3 +3,6 @@ node_modules
 preview
 data
 package-lock.json
+.wrangler
+worker/.build
+worker/migrations

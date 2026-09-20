@@ -20,6 +20,8 @@ export const en = {
     missingBotPermission: 'I am missing the **{permissions}** permission in {channel}.',
     channelNotConfigured: 'No channel is configured for this. An admin can set it with `/config set`.',
     channelUnavailable: 'The configured channel no longer exists or I cannot see it.',
+    botNotInServer:
+      'I am not a member of this server — I was only installed for commands, so I cannot read or post anything. Re-invite me with a link that includes the `bot` scope.',
   },
 
   config: {
@@ -137,6 +139,8 @@ export const en = {
     backgroundNotImage: 'That link does not point at an image.',
     backgroundTooBig: 'That image is over 8 MB. Resize it — the card is only 1000x350.',
     backgroundUndecodable: 'I downloaded it but could not read it as an image. PNG, JPG or WebP.',
+    needsGateway:
+      'This needs the always-on version of the bot to render the card, so it is not available in serverless mode. Everything else works.',
   },
 
   announce: {

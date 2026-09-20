@@ -38,3 +38,8 @@ preview/
 *.db
 *.db-shm
 *.db-wal
+
+# Cloudflare Worker: local secrets, local D1 state and build output
+.dev.vars
+.wrangler/
+worker/.build/

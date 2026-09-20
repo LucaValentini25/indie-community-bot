@@ -20,6 +20,8 @@ export const es: LocaleStrings = {
     channelNotConfigured:
       'No hay un canal configurado para esto. Un admin puede definirlo con `/config set`.',
     channelUnavailable: 'El canal configurado ya no existe o no puedo verlo.',
+    botNotInServer:
+      'No soy miembro de este servidor: solo me instalaron para los comandos, así que no puedo leer ni publicar nada. Invitame de nuevo con un link que incluya el permiso `bot`.',
   },
 
   config: {
@@ -138,6 +140,8 @@ export const es: LocaleStrings = {
     backgroundNotImage: 'Ese link no apunta a una imagen.',
     backgroundTooBig: 'Esa imagen pasa los 8 MB. Redimensionala — la tarjeta mide 1000x350.',
     backgroundUndecodable: 'La descargué pero no pude leerla como imagen. PNG, JPG o WebP.',
+    needsGateway:
+      'Esto necesita la versión del bot siempre encendida para generar la tarjeta, así que no está disponible en modo serverless. Todo lo demás funciona.',
   },
 
   announce: {

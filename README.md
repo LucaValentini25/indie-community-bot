@@ -62,6 +62,7 @@ Writes samples to `preview/`. `assets/welcome/background.png` (1000×350 or wide
 | **[DEPLOYMENT.md](docs/DEPLOYMENT.md)** | Develop locally against a test server, push to main, and let the server update itself from GHCR with automatic rollback |
 | **[HOSTING-ORACLE.md](docs/HOSTING-ORACLE.md)** | Free 24/7 hosting on Oracle Cloud Always Free — no accidental billing, 4 ARM cores |
 | **[HOSTING-GCP.md](docs/HOSTING-GCP.md)** | The same on a Google Cloud e2-micro |
+| **[HOSTING-CLOUDFLARE.md](docs/HOSTING-CLOUDFLARE.md)** | No server at all: the serverless variant on Cloudflare Workers + D1, free, minus the welcome card |
 | **[BUILD-NOTIFICATIONS.md](docs/BUILD-NOTIFICATIONS.md)** | Three ways to announce a build, the webhook API, Steam and itch.io |
 | **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** | How the code is organised and why |
 | **[PLAN.md](PLAN.md)** | What is built, what is next |
@@ -83,7 +84,9 @@ npm run format           # prettier
 
 ## Hosting
 
-The bot holds an open WebSocket to Discord, so it needs a process that stays alive — **Vercel and Cloudflare Workers cannot host it** (they can serve slash commands over HTTP Interactions, but never `guildMemberAdd`, which is what the welcome card runs on).
+The full bot holds an open WebSocket to Discord, so it needs a process that stays alive — the welcome card runs on `guildMemberAdd`, which only arrives over that WebSocket.
+
+**No server? Everything except the join features runs free on Cloudflare Workers** — slash commands, bug tickets, the role panel, announcements and CI build notifications, over Discord's HTTP interactions. See [HOSTING-CLOUDFLARE.md](docs/HOSTING-CLOUDFLARE.md). What is left out is the welcome card and the auto-role on join, and moving to a server later loses nothing else.
 
 What it does need is modest: **~125 MB resident**, one core, and a disk that survives a reboot. Any spare machine clears that — an old mini PC, a laptop, a Raspberry Pi. And because it only makes *outbound* connections, running it at home needs no static IP, no port forwarding and no domain.
 
