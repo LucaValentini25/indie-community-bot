@@ -1,112 +1,15 @@
 import { db, queryOne, queryOneRequired } from '../db/index.js';
 import { env } from './env.js';
-import { isLocale, type Locale } from '../i18n/index.js';
+import {
+  COLUMNS,
+  toConfig,
+  type EditableField,
+  type GuildConfig,
+  type GuildConfigRow,
+} from './guild-model.js';
 
-/**
- * Per-guild settings. This is what makes the bot reusable: nothing about a
- * specific game or server is hardcoded — a second community only needs its own
- * row here, created automatically the first time we see the guild.
- */
-export interface GuildConfig {
-  guildId: string;
-  /** The server's primary public language. */
-  locale: Locale;
-  /**
-   * Optional second public language. When set, everything the whole server
-   * sees is rendered in both, `locale` first. NULL means monolingual.
-   */
-  secondaryLocale: Locale | null;
-
-  welcomeEnabled: boolean;
-  welcomeChannelId: string | null;
-  welcomeRoleId: string | null;
-
-  announceChannelId: string | null;
-  devlogChannelId: string | null;
-
-  buildChannelId: string | null;
-  buildRoleId: string | null;
-
-  ticketChannelId: string | null;
-  ticketStaffRoleId: string | null;
-  ticketCounter: number;
-
-  accentColor: string;
-  gameName: string | null;
-
-  createdAt: number;
-  updatedAt: number;
-}
-
-interface GuildConfigRow {
-  guild_id: string;
-  locale: string;
-  secondary_locale: string | null;
-  welcome_enabled: number;
-  welcome_channel_id: string | null;
-  welcome_role_id: string | null;
-  announce_channel_id: string | null;
-  devlog_channel_id: string | null;
-  build_channel_id: string | null;
-  build_role_id: string | null;
-  ticket_channel_id: string | null;
-  ticket_staff_role_id: string | null;
-  ticket_counter: number;
-  accent_color: string;
-  game_name: string | null;
-  created_at: number;
-  updated_at: number;
-}
-
-/**
- * Maps a camelCase field to its column. Also acts as the allowlist for
- * `updateGuildConfig`, so a caller can never inject a column name.
- */
-const COLUMNS = {
-  locale: 'locale',
-  secondaryLocale: 'secondary_locale',
-  welcomeEnabled: 'welcome_enabled',
-  welcomeChannelId: 'welcome_channel_id',
-  welcomeRoleId: 'welcome_role_id',
-  announceChannelId: 'announce_channel_id',
-  devlogChannelId: 'devlog_channel_id',
-  buildChannelId: 'build_channel_id',
-  buildRoleId: 'build_role_id',
-  ticketChannelId: 'ticket_channel_id',
-  ticketStaffRoleId: 'ticket_staff_role_id',
-  ticketCounter: 'ticket_counter',
-  accentColor: 'accent_color',
-  gameName: 'game_name',
-} as const satisfies Record<string, string>;
-
-export type EditableField = keyof typeof COLUMNS;
-
-/** Narrows a raw column value to a Locale, or null if it is not one we speak. */
-function toLocale(value: string | null): Locale | null {
-  return value !== null && isLocale(value) ? value : null;
-}
-
-function toConfig(row: GuildConfigRow): GuildConfig {
-  return {
-    guildId: row.guild_id,
-    locale: toLocale(row.locale) ?? 'en',
-    secondaryLocale: toLocale(row.secondary_locale),
-    welcomeEnabled: row.welcome_enabled === 1,
-    welcomeChannelId: row.welcome_channel_id,
-    welcomeRoleId: row.welcome_role_id,
-    announceChannelId: row.announce_channel_id,
-    devlogChannelId: row.devlog_channel_id,
-    buildChannelId: row.build_channel_id,
-    buildRoleId: row.build_role_id,
-    ticketChannelId: row.ticket_channel_id,
-    ticketStaffRoleId: row.ticket_staff_role_id,
-    ticketCounter: row.ticket_counter,
-    accentColor: row.accent_color,
-    gameName: row.game_name,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
+// The model lives in guild-model.ts so the serverless Worker can share it.
+export type { EditableField, GuildConfig };
 
 /**
  * Reads are on the hot path of every interaction, so we keep the row in

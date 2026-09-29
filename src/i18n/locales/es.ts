@@ -20,6 +20,8 @@ export const es: LocaleStrings = {
     channelNotConfigured:
       'No hay un canal configurado para esto. Un admin puede definirlo con `/config set`.',
     channelUnavailable: 'El canal configurado ya no existe o no puedo verlo.',
+    botNotInServer:
+      'No soy miembro de este servidor: solo me instalaron para los comandos, así que no puedo leer ni publicar nada. Invitame de nuevo con un link que incluya el permiso `bot`.',
   },
 
   config: {
@@ -49,6 +51,7 @@ export const es: LocaleStrings = {
     checkDescription: 'Todo lo que el bot necesita para funcionar en este servidor.',
     checkOk: 'Listo',
     checkMissing: 'Sin configurar',
+    fieldSecondaryChannel: '(2º idioma)',
     checkNoPermission: 'Configurado, pero me faltan permisos',
     fieldServerAvatar: 'Avatar del servidor',
     fieldServerBanner: 'Portada del servidor',
@@ -127,6 +130,18 @@ export const es: LocaleStrings = {
     messageWithGame:
       '¡Hola {user}, bienvenido a la comunidad de **{game}**! Pasá por las reglas y presentate.',
     testSent: 'Vista previa enviada.',
+    backgroundSet: 'Arte de la bienvenida actualizado para este servidor.',
+    backgroundPreviewHint: 'Corré `/welcome test` para verlo.',
+    backgroundCleared: 'Vuelve el arte por defecto.',
+    backgroundNothing: 'Pasá `url:`, adjuntá un `file:`, o usá `clear:true`.',
+    backgroundNotUrl: 'Eso no es un link http(s) válido.',
+    backgroundUnreachable:
+      'No pude descargar esa imagen. Fijate que el link sea público y directo — la página donde está no sirve, tenés que pasar la imagen en sí.',
+    backgroundNotImage: 'Ese link no apunta a una imagen.',
+    backgroundTooBig: 'Esa imagen pasa los 8 MB. Redimensionala — la tarjeta mide 1000x350.',
+    backgroundUndecodable: 'La descargué pero no pude leerla como imagen. PNG, JPG o WebP.',
+    needsGateway:
+      'Esto necesita la versión del bot siempre encendida para generar la tarjeta, así que no está disponible en modo serverless. Todo lo demás funciona.',
   },
 
   announce: {

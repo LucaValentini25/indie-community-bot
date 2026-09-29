@@ -43,7 +43,40 @@ async function main(): Promise<void> {
 
   installShutdownHandlers(client, httpServer);
 
-  await client.login(env.DISCORD_TOKEN);
+  try {
+    await client.login(env.DISCORD_TOKEN);
+  } catch (error) {
+    // By this point the port is bound and the database is open. Exiting
+    // straight from the catch below would leave both to be torn down by
+    // process death — which skips the WAL checkpoint and, on Windows, aborts
+    // libuv with half-closed handles instead of reporting the real cause.
+    // Unwind in the same order the signal handler does.
+    await shutdownResources(client, httpServer);
+    throw error;
+  }
+}
+
+/**
+ * Sets the exit code and lets the event loop finish closing what is already
+ * closing, rather than calling `process.exit` on the spot.
+ *
+ * `process.exit` tears the process down mid-close: on Windows that aborts
+ * libuv with `!(handle->flags & UV_HANDLE_CLOSING)`, which replaces whatever
+ * we just logged as the real cause with a crash message. The unref'd timer is
+ * the backstop — if some handle refuses to close, we still exit rather than
+ * hanging a container forever, and `.unref()` keeps the timer itself from
+ * being the thing that holds the loop open.
+ */
+function exitWhenDrained(code: number): void {
+  process.exitCode = code;
+  setTimeout(() => process.exit(code), 3000).unref();
+}
+
+/** Closes what `main` opened, in the order that keeps SQLite consistent. */
+async function shutdownResources(client: ReturnType<typeof createClient>, httpServer: Server): Promise<void> {
+  await new Promise<void>((resolve) => httpServer.close(() => resolve()));
+  await client.destroy().catch(() => undefined);
+  closeDatabase();
 }
 
 function installShutdownHandlers(client: ReturnType<typeof createClient>, httpServer: Server): void {
@@ -57,12 +90,10 @@ function installShutdownHandlers(client: ReturnType<typeof createClient>, httpSe
 
     // Stop accepting webhooks first, then disconnect the gateway cleanly so
     // Discord does not treat it as a crash, then flush SQLite's WAL.
-    await new Promise<void>((resolve) => httpServer.close(() => resolve()));
-    await client.destroy();
-    closeDatabase();
+    await shutdownResources(client, httpServer);
 
     log.info('bye');
-    process.exit(0);
+    exitWhenDrained(0);
   };
 
   process.on('SIGINT', () => void shutdown('SIGINT'));
@@ -82,5 +113,5 @@ function installShutdownHandlers(client: ReturnType<typeof createClient>, httpSe
 
 main().catch((error: unknown) => {
   log.fatal({ err: error }, 'failed to start');
-  process.exit(1);
+  exitWhenDrained(1);
 });

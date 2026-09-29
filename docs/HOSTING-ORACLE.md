@@ -115,9 +115,12 @@ No swap file is needed — 24 GB is more RAM than this bot will ever ask for. Do
 ```bash
 mkdir -p ~/discord-bot && cd ~/discord-bot
 
+# Your repository, lowercase: GHCR rejects uppercase.
+GHCR_REPO="your-username/indie-community-bot"
+
 curl -o docker-compose.prod.yml \
-  https://raw.githubusercontent.com/OWNER/REPO/main/docker-compose.prod.yml
-sed -i 's|ghcr.io/OWNER/REPO|ghcr.io/owner/repo|' docker-compose.prod.yml
+  "https://raw.githubusercontent.com/$GHCR_REPO/main/docker-compose.prod.yml"
+sed -i "s|ghcr.io/OWNER/REPO|ghcr.io/$GHCR_REPO|" docker-compose.prod.yml
 ```
 
 Then `.env` — paste this as a single block, ending with the lone `EOF` line:
@@ -347,8 +350,8 @@ free -h && df -h /                        # memory and disk
 **Rollback.** Every deploy also tags the image with the commit SHA:
 
 ```bash
-docker pull ghcr.io/owner/repo:GOOD_SHA
-docker tag  ghcr.io/owner/repo:GOOD_SHA ghcr.io/owner/repo:latest
+docker pull ghcr.io/$GHCR_REPO:GOOD_SHA
+docker tag  ghcr.io/$GHCR_REPO:GOOD_SHA ghcr.io/$GHCR_REPO:latest
 docker compose -f docker-compose.prod.yml up -d
 ```
 

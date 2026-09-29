@@ -86,6 +86,18 @@ Two things happen automatically and need no configuration:
 
 To post in one language only, pass `language:` to `/announce` or `/devlog`. To go back to monolingual: `/config reset setting:Second language`.
 
+#### One channel per language
+
+By default both languages share a channel. If the server runs them side by side instead — `#anuncios` next to `#announcements` — give the second language its own channel:
+
+```
+/config channels announcements_secondary:#announcements devlogs_secondary:#devlogs-en builds_secondary:#builds-en welcome_secondary:#welcome-en
+```
+
+Each option is independent, so you can split announcements and keep builds shared. With a channel set, each language goes out as its own message in its own channel, and the welcome card is drawn once per language. Bug threads are the exception: a thread already speaks the reporter's language and has to live in one channel.
+
+Publishing is **all or nothing**. Both channels are checked before anything is sent, so a devlog never goes out in one language only — if the second channel is unusable, neither message is posted and `/config check` shows which channel is at fault. To go back to sharing: `/config reset setting:Announcements channel (2nd language)` (and likewise for the others).
+
 `/config check` walks every channel and role and reports what the bot can actually do. It is the first thing to run when something is not posting — a missing permission shows up as a red line instead of silence.
 
 Then post the bug panel:
@@ -93,6 +105,28 @@ Then post the bug panel:
 ```
 /bug panel
 ```
+
+### Artwork for the welcome card
+
+`assets/welcome/background.png` is the default every server falls back to. To give one server its own:
+
+```
+/welcome background url:https://raw.githubusercontent.com/you/game/main/art/banner.png
+/welcome background file:[upload an image]
+/welcome background clear:true
+/welcome test
+```
+
+The card is 1000×350, so supply that or wider; anything smaller is stretched.
+
+**Only the link is stored in the database, never the image.** The bytes are cached next to the database on the data volume. That matters for two reasons:
+
+- **Discord attachment links expire.** Since 2023 they are signed and stop resolving after about a day, so a URL copied out of a Discord message would work when you set it and quietly stop the next morning. Caching at set time makes the upload path safe anyway — but for a link you paste, prefer a stable host over a Discord CDN URL.
+- **A join never waits on the network.** The card renders from a local file.
+
+The link is validated when you set it, not when somebody joins: it must be reachable, be served as an image, decode as one, and stay under 8 MB. You get the specific reason immediately rather than discovering a blank card the next time a member arrives.
+
+The **font** is still global — it is registered once at startup from `assets/fonts/`, so it is shared by every server this bot serves.
 
 ### The bot's own look, per server
 
@@ -196,6 +230,7 @@ Writes sample cards to `preview/`. Drop artwork at `assets/welcome/background.pn
 | `/selfrole list` | Manage Server | The panel's roles, and whether the bot can assign each |
 | `/selfrole panel` | Manage Server | Post the button panel |
 | `/welcome test` | Manage Server | Preview the welcome card |
+| `/welcome background` | Manage Server | Set this server's card artwork, by link or upload |
 | `/announce` | Manage Messages | Post an announcement |
 | `/devlog` | Manage Messages | Post a numbered devlog |
 | `/build announce` | Manage Messages | Announce a build by hand |

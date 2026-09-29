@@ -1,0 +1,139 @@
+import { isLocale, type Locale } from '../i18n/index.js';
+
+/**
+ * The shape of a server's settings, and how it maps to the `guild_config`
+ * table. Pure data — no database, no Discord — so the always-on bot and the
+ * serverless Worker share one definition and cannot drift apart.
+ */
+
+/**
+ * Per-guild settings. This is what makes the bot reusable: nothing about a
+ * specific game or server is hardcoded — a second community only needs its own
+ * row here, created automatically the first time we see the guild.
+ */
+export interface GuildConfig {
+  guildId: string;
+  /** The server's primary public language. */
+  locale: Locale;
+  /**
+   * Optional second public language. When set, everything the whole server
+   * sees is rendered in both, `locale` first. NULL means monolingual.
+   */
+  secondaryLocale: Locale | null;
+
+  welcomeEnabled: boolean;
+  welcomeChannelId: string | null;
+  welcomeRoleId: string | null;
+  /** Artwork for the card. The bytes live on disk; see features/welcome/background.ts. */
+  welcomeBackgroundUrl: string | null;
+
+  announceChannelId: string | null;
+  devlogChannelId: string | null;
+
+  /**
+   * Where the secondary language goes instead. NULL means it shares the
+   * channel above, as one message with an embed per language.
+   */
+  announceChannelSecondaryId: string | null;
+  devlogChannelSecondaryId: string | null;
+  buildChannelSecondaryId: string | null;
+  welcomeChannelSecondaryId: string | null;
+
+  buildChannelId: string | null;
+  buildRoleId: string | null;
+
+  ticketChannelId: string | null;
+  ticketStaffRoleId: string | null;
+  ticketCounter: number;
+
+  accentColor: string;
+  gameName: string | null;
+
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface GuildConfigRow {
+  guild_id: string;
+  locale: string;
+  secondary_locale: string | null;
+  welcome_enabled: number;
+  welcome_channel_id: string | null;
+  welcome_role_id: string | null;
+  welcome_background_url: string | null;
+  announce_channel_id: string | null;
+  devlog_channel_id: string | null;
+  announce_channel_secondary_id: string | null;
+  devlog_channel_secondary_id: string | null;
+  build_channel_secondary_id: string | null;
+  welcome_channel_secondary_id: string | null;
+  build_channel_id: string | null;
+  build_role_id: string | null;
+  ticket_channel_id: string | null;
+  ticket_staff_role_id: string | null;
+  ticket_counter: number;
+  accent_color: string;
+  game_name: string | null;
+  created_at: number;
+  updated_at: number;
+}
+
+/**
+ * Maps a camelCase field to its column. Also acts as the allowlist for
+ * `updateGuildConfig`, so a caller can never inject a column name.
+ */
+export const COLUMNS = {
+  locale: 'locale',
+  secondaryLocale: 'secondary_locale',
+  welcomeEnabled: 'welcome_enabled',
+  welcomeChannelId: 'welcome_channel_id',
+  welcomeRoleId: 'welcome_role_id',
+  welcomeBackgroundUrl: 'welcome_background_url',
+  announceChannelId: 'announce_channel_id',
+  devlogChannelId: 'devlog_channel_id',
+  announceChannelSecondaryId: 'announce_channel_secondary_id',
+  devlogChannelSecondaryId: 'devlog_channel_secondary_id',
+  buildChannelSecondaryId: 'build_channel_secondary_id',
+  welcomeChannelSecondaryId: 'welcome_channel_secondary_id',
+  buildChannelId: 'build_channel_id',
+  buildRoleId: 'build_role_id',
+  ticketChannelId: 'ticket_channel_id',
+  ticketStaffRoleId: 'ticket_staff_role_id',
+  ticketCounter: 'ticket_counter',
+  accentColor: 'accent_color',
+  gameName: 'game_name',
+} as const satisfies Record<string, string>;
+
+export type EditableField = keyof typeof COLUMNS;
+
+/** Narrows a raw column value to a Locale, or null if it is not one we speak. */
+function toLocale(value: string | null): Locale | null {
+  return value !== null && isLocale(value) ? value : null;
+}
+
+export function toConfig(row: GuildConfigRow): GuildConfig {
+  return {
+    guildId: row.guild_id,
+    locale: toLocale(row.locale) ?? 'en',
+    secondaryLocale: toLocale(row.secondary_locale),
+    welcomeEnabled: row.welcome_enabled === 1,
+    welcomeChannelId: row.welcome_channel_id,
+    welcomeRoleId: row.welcome_role_id,
+    welcomeBackgroundUrl: row.welcome_background_url,
+    announceChannelId: row.announce_channel_id,
+    devlogChannelId: row.devlog_channel_id,
+    announceChannelSecondaryId: row.announce_channel_secondary_id,
+    devlogChannelSecondaryId: row.devlog_channel_secondary_id,
+    buildChannelSecondaryId: row.build_channel_secondary_id,
+    welcomeChannelSecondaryId: row.welcome_channel_secondary_id,
+    buildChannelId: row.build_channel_id,
+    buildRoleId: row.build_role_id,
+    ticketChannelId: row.ticket_channel_id,
+    ticketStaffRoleId: row.ticket_staff_role_id,
+    ticketCounter: row.ticket_counter,
+    accentColor: row.accent_color,
+    gameName: row.game_name,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}

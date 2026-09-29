@@ -1,0 +1,47 @@
+name: Deploy Worker
+
+# Deploys the serverless (Cloudflare Workers) variant. On demand only: the
+# always-on bot deploys itself from `deploy.yml`, and a repository that does not
+# use Cloudflare should not have a workflow failing for lack of a token.
+#
+# Needs two repository secrets:
+#   CLOUDFLARE_API_TOKEN   created from the "Edit Cloudflare Workers" template
+#   CLOUDFLARE_ACCOUNT_ID  shown on the Workers & Pages overview
+#
+# See docs/HOSTING-CLOUDFLARE.md.
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-worker
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Test before shipping
+        run: npm run worker:typecheck && npm run worker:test
+
+      - name: Apply database migrations
+        run: npm run worker:migrate
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy
+        run: npm run worker:deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

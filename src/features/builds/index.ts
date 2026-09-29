@@ -5,8 +5,7 @@ import {
   contextFor,
   contextForUser,
   describeChannelFailure,
-  localeRenderers,
-  resolveSendableChannel,
+  resolvePublicationTargets,
 } from '../../lib/context.js';
 import { createLogger } from '../../core/logger.js';
 import { isHttpUrl, truncate } from '../../lib/text.js';
@@ -92,77 +91,102 @@ export async function announceBuild(client: Client, input: AnnounceBuildInput): 
     return { ok: false, reason: 'duplicate' };
   }
 
-  const lookup = await resolveSendableChannel(guild, config.buildChannelId);
-  if (!lookup.ok) {
-    return { ok: false, reason: 'channel', message: describeChannelFailure(lookup, s) };
+  const resolved = await resolvePublicationTargets(
+    guild,
+    config,
+    config.buildChannelId,
+    config.buildChannelSecondaryId,
+  );
+  if (!resolved.ok) {
+    return { ok: false, reason: 'channel', message: describeChannelFailure(resolved.failure, s) };
   }
+  const targets = resolved.targets;
 
   // `notes` fills in for the primary language only. A secondary language with
   // no changelog of its own gets no block rather than an English one.
   const notes: LocalizedNotes = { ...input.notesByLocale };
   if (input.notes?.trim() && !notes[config.locale]) notes[config.locale] = input.notes.trim();
 
-  const renderers = localeRenderers(config);
-  // The first language always gets a block — it carries the title and metadata
-  // even when there is no changelog. The rest earn theirs by having text.
-  const blocks = renderers.filter((renderer, index) => index === 0 || notes[renderer.locale]?.trim());
-  const bilingual = blocks.length > 1;
+  const sent: { channelId: string; messageId: string }[] = [];
 
-  const embeds = blocks.map((renderer, index) => {
-    const isFirst = index === 0;
-    const isLast = index === blocks.length - 1;
+  for (const target of targets) {
+    // The first language always gets a block — it carries the title and
+    // metadata even when there is no changelog. The rest earn theirs by having
+    // text. In a split post each message starts fresh, so its own first
+    // language carries the title.
+    const blocks = target.renderers.filter(
+      (renderer, index) => index === 0 || notes[renderer.locale]?.trim(),
+    );
+    const bilingual = blocks.length > 1;
 
-    const embed = brandedEmbed(config).setAuthor({
-      name: bilingual ? `${renderer.label} · ${renderer.s('build.newBuild')}` : renderer.s('build.newBuild'),
-    });
+    const embeds = blocks.map((renderer, index) => {
+      const isFirst = index === 0;
+      const isLast = index === blocks.length - 1;
 
-    // The title is the game name and a version number — identical in every
-    // language, so repeating it per block would just be noise.
-    if (isFirst) {
-      embed.setTitle(
-        config.gameName
-          ? renderer.s('build.titleWithGame', { game: config.gameName, version: input.version })
-          : renderer.s('build.titleWithoutGame', { version: input.version }),
-      );
-      if (input.url && isHttpUrl(input.url)) embed.setURL(input.url);
-    }
+      const embed = brandedEmbed(config).setAuthor({
+        name: bilingual
+          ? `${renderer.label} · ${renderer.s('build.newBuild')}`
+          : renderer.s('build.newBuild'),
+      });
 
-    const body = notes[renderer.locale]?.trim();
-    if (body) embed.setDescription(truncate(body, 4000));
+      // The title is the game name and a version number — identical in every
+      // language, so repeating it per block would just be noise.
+      if (isFirst) {
+        embed.setTitle(
+          config.gameName
+            ? renderer.s('build.titleWithGame', { game: config.gameName, version: input.version })
+            : renderer.s('build.titleWithoutGame', { version: input.version }),
+        );
+        if (input.url && isHttpUrl(input.url)) embed.setURL(input.url);
+      }
 
-    // Metadata once, at the bottom of the message.
-    if (isLast) {
-      embed.addFields({ name: renderer.s('build.fieldChannel'), value: `\`${channelName}\``, inline: true });
-      if (input.platforms?.trim()) {
+      const body = notes[renderer.locale]?.trim();
+      if (body) embed.setDescription(truncate(body, 4000));
+
+      // Metadata once, at the bottom of the message.
+      if (isLast) {
         embed.addFields({
-          name: renderer.s('build.fieldPlatforms'),
-          value: input.platforms.trim(),
+          name: renderer.s('build.fieldChannel'),
+          value: `\`${channelName}\``,
           inline: true,
         });
+        if (input.platforms?.trim()) {
+          embed.addFields({
+            name: renderer.s('build.fieldPlatforms'),
+            value: input.platforms.trim(),
+            inline: true,
+          });
+        }
+        embed.setFooter({ text: renderer.s('build.footerSource', { source }) }).setTimestamp(new Date());
       }
-      embed.setFooter({ text: renderer.s('build.footerSource', { source }) }).setTimestamp(new Date());
+
+      return embed;
+    });
+
+    const components = [];
+    if (input.url && isHttpUrl(input.url)) {
+      components.push(
+        new ActionRowBuilder<ButtonBuilder>().addComponents(
+          // The button label follows this message's own language.
+          new ButtonBuilder()
+            .setStyle(ButtonStyle.Link)
+            .setLabel(blocks[0]!.s('build.download'))
+            .setURL(input.url),
+        ),
+      );
     }
 
-    return embed;
-  });
+    const message = await target.channel.send({
+      content: config.buildRoleId ? `<@&${config.buildRoleId}>` : undefined,
+      embeds,
+      components,
+      // Explicit allowlist: the role ping is intentional, everything else in
+      // the changelog text (@everyone, stray @mentions) must stay inert.
+      allowedMentions: config.buildRoleId ? { roles: [config.buildRoleId] } : { parse: [] },
+    });
 
-  const components = [];
-  if (input.url && isHttpUrl(input.url)) {
-    components.push(
-      new ActionRowBuilder<ButtonBuilder>().addComponents(
-        new ButtonBuilder().setStyle(ButtonStyle.Link).setLabel(s('build.download')).setURL(input.url),
-      ),
-    );
+    sent.push({ channelId: target.channel.id, messageId: message.id });
   }
-
-  const message = await lookup.channel.send({
-    content: config.buildRoleId ? `<@&${config.buildRoleId}>` : undefined,
-    embeds,
-    components,
-    // Explicit allowlist: the role ping is intentional, everything else in the
-    // changelog text (@everyone, stray @mentions) must stay inert.
-    allowedMentions: config.buildRoleId ? { roles: [config.buildRoleId] } : { parse: [] },
-  });
 
   recordBuild({
     guildId: input.guildId,
@@ -173,7 +197,9 @@ export async function announceBuild(client: Client, input: AnnounceBuildInput): 
     notesI18n: Object.keys(notes).length > 0 ? JSON.stringify(notes) : null,
     url: input.url ?? null,
     source,
-    messageId: message.id,
+    // The builds table holds one message id. With a split post that is the
+    // primary language's, which is what /build latest links to.
+    messageId: sent[0]!.messageId,
   });
 
   log.info(
@@ -182,12 +208,13 @@ export async function announceBuild(client: Client, input: AnnounceBuildInput): 
       version: input.version,
       channel: channelName,
       source,
-      locales: blocks.map((renderer) => renderer.locale),
+      messages: sent.map((row) => row.messageId),
+      locales: targets.flatMap((t) => t.renderers.map((r) => r.locale)),
     },
     'build announced',
   );
 
-  return { ok: true, channelId: lookup.channel.id, messageId: message.id };
+  return { ok: true, channelId: sent[0]!.channelId, messageId: sent[0]!.messageId };
 }
 
 /**

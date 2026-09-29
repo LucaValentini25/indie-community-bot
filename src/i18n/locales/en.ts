@@ -20,6 +20,8 @@ export const en = {
     missingBotPermission: 'I am missing the **{permissions}** permission in {channel}.',
     channelNotConfigured: 'No channel is configured for this. An admin can set it with `/config set`.',
     channelUnavailable: 'The configured channel no longer exists or I cannot see it.',
+    botNotInServer:
+      'I am not a member of this server — I was only installed for commands, so I cannot read or post anything. Re-invite me with a link that includes the `bot` scope.',
   },
 
   config: {
@@ -49,6 +51,7 @@ export const en = {
     checkDescription: 'Everything the bot needs in order to work in this server.',
     checkOk: 'Ready',
     checkMissing: 'Not configured',
+    fieldSecondaryChannel: '(2nd language)',
     checkNoPermission: 'Configured, but I lack permissions',
     fieldServerAvatar: 'Server avatar',
     fieldServerBanner: 'Server banner',
@@ -126,6 +129,18 @@ export const en = {
     message: 'Hey {user}, welcome to **{guild}**! Take a look at the rules and say hi.',
     messageWithGame: 'Hey {user}, welcome to the **{game}** community! Take a look at the rules and say hi.',
     testSent: 'Preview sent.',
+    backgroundSet: 'Welcome artwork updated for this server.',
+    backgroundPreviewHint: 'Run `/welcome test` to see it.',
+    backgroundCleared: 'Back to the default artwork.',
+    backgroundNothing: 'Pass `url:`, attach a `file:`, or use `clear:true`.',
+    backgroundNotUrl: 'That is not a valid http(s) link.',
+    backgroundUnreachable:
+      'I could not download that image. Check the link is public and direct — a page it sits on will not work, only the image itself.',
+    backgroundNotImage: 'That link does not point at an image.',
+    backgroundTooBig: 'That image is over 8 MB. Resize it — the card is only 1000x350.',
+    backgroundUndecodable: 'I downloaded it but could not read it as an image. PNG, JPG or WebP.',
+    needsGateway:
+      'This needs the always-on version of the bot to render the card, so it is not available in serverless mode. Everything else works.',
   },
 
   announce: {

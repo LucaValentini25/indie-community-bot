@@ -6,9 +6,11 @@ Why the code is shaped the way it is. Read this before making a structural chang
 
 ## The one constraint that drives everything
 
-A Discord bot that reacts to **events** — someone joined, someone clicked a button — has to hold an open WebSocket to Discord's gateway. That rules out serverless hosting (Vercel, Cloudflare Workers, Lambda): those wake on a request, run briefly, and die.
+A Discord bot that reacts to **events** — someone joined, a role was deleted — has to hold an open WebSocket to Discord's gateway. That rules out serverless hosting (Vercel, Cloudflare Workers, Lambda) for those events: serverless wakes on a request, runs briefly, and dies.
 
-Slash commands alone *could* run serverless, through Discord's HTTP Interactions endpoint. But the welcome card fires on `guildMemberAdd`, which only arrives over the gateway. So: **one long-running process**. Every hosting decision follows from that.
+Slash commands, buttons and modals do *not* need it: Discord can deliver them as signed HTTP requests to an Interactions Endpoint URL. But the welcome card fires on `guildMemberAdd`, which only arrives over the gateway. So the full bot is **one long-running process**, and every hosting decision for it follows from that.
+
+There is a second, deliberately smaller variant for people with no server: `worker/`, the same behaviour minus the gateway-only features, on Cloudflare Workers. See [Two runtimes](#two-runtimes-one-behaviour).
 
 ---
 
@@ -112,6 +114,40 @@ A public post never uses the viewer's language; an ephemeral reply never uses th
 ### i18n as TypeScript, not JSON
 
 `locales/es.ts` is typed against `locales/en.ts`. Adding an English key without translating it is a **compile error**, not an `undefined` in production. `t()` still falls back to English at runtime, then to the key itself — a visibly wrong string beats a crash mid-interaction.
+
+---
+
+## Two runtimes, one behaviour
+
+`src/` is the always-on bot (discord.js + `node:sqlite`). `worker/` is the same behaviour on Cloudflare Workers + D1, for when there is no server. They are separate programs that share what can be shared and no more.
+
+**Shared, imported directly** — a change here reaches both:
+
+- `src/i18n/` — every string, in both languages, still compile-checked against each other.
+- `src/lib/text.ts` — truncation, slugs, colours, timestamps.
+- `src/config/guild-model.ts` — the settings type and its column mapping.
+- `src/db/migrations.ts` — the schema. `npm run worker:migrations` turns it into `worker/migrations/*.sql`, so D1 and SQLite cannot diverge.
+- `src/commands/*` *definitions* — what Discord shows in the command picker. `commands:deploy` registers them for both.
+
+**Reimplemented** — because the two runtimes disagree on the fundamentals:
+
+| | `src/` | `worker/src/` |
+|---|---|---|
+| Interaction object | discord.js class | `discord/interaction.ts`, a small class with the same method names |
+| Database | synchronous | async (D1), so every read is `await`ed |
+| In-memory cache | safe: one process, one writer | none: many isolates, any of them may write |
+| Discord state | gateway cache (`guild.channels`, `member.roles`) | fetched per request, memoised for that request only |
+| Permission checks | `channel.permissionsFor(me)` | computed in `discord/permissions.ts` from roles and overwrites |
+
+`interaction.ts` mirrors discord.js's method names on purpose, so a handler in `worker/src/commands/` reads almost line for line like its counterpart in `src/commands/`. That is what makes the second copy cheap to keep in step.
+
+**The cost of two copies is drift.** The mitigation is `npm run worker:test`: it runs the whole Worker — signature check, router, every feature — against a fake D1 and a fake Discord, so a behaviour change on one side that the other did not follow shows up as a failing test rather than a support question. When you change a command's behaviour, change both, and extend `worker/tools/smoke.ts`.
+
+**Why not one codebase behind an adapter?** Considered and rejected for now. The behaviour code is the part that touches discord.js objects on every line, so an adapter would have to reimplement most of discord.js's surface to be honest about it. Two small, tested copies are less to reason about than one large fake.
+
+### The one thing that is different by design
+
+With HTTP interactions the *first reply is the HTTP response*. A handler that will call Discord's API — anything that resolves a channel, posts a message, edits a member — answers `deferReply()` first, so the 3-second window is spent acknowledging, and finishes with `editReply()` from `ctx.waitUntil`. The follow-up retries a 404 briefly, because Discord only accepts a token once it has seen the first answer, and we start the follow-up the instant we hand that answer back.
 
 ---
 

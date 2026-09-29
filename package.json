@@ -15,18 +15,29 @@
     "commands:clear": "tsx --env-file=.env src/scripts/deploy-commands.ts --clear",
     "preview:card": "tsx src/scripts/preview-card.ts",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
-    "format": "prettier --write \"src/**/*.ts\" \"*.{json,md}\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "lint": "eslint src worker",
+    "lint:fix": "eslint src worker --fix",
+    "format": "prettier --write \"src/**/*.ts\" \"worker/**/*.ts\" \"*.{json,md}\"",
+    "format:check": "prettier --check \"src/**/*.ts\" \"worker/**/*.ts\"",
+    "worker:dev": "wrangler dev -c worker/wrangler.toml",
+    "worker:deploy": "wrangler deploy -c worker/wrangler.toml",
+    "worker:migrations": "tsx worker/tools/generate-migrations.ts",
+    "worker:migrate": "wrangler d1 migrations apply DB --remote -c worker/wrangler.toml",
+    "worker:migrate:local": "wrangler d1 migrations apply DB --local -c worker/wrangler.toml",
+    "worker:typecheck": "tsc -p worker/tsconfig.json && tsc -p worker/tools/tsconfig.json",
+    "worker:test": "tsx worker/tools/smoke.ts",
+    "commands:deploy:prod": "tsx --env-file=.env.prod src/scripts/deploy-commands.ts"
   },
   "dependencies": {
+    "@discordjs/builders": "^1.14.1",
     "@napi-rs/canvas": "^1.0.8",
+    "discord-api-types": "^0.38.55",
     "discord.js": "^14.27.0",
     "pino": "^10.3.1",
     "zod": "^4.5.4"
   },
   "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260919.1",
     "@eslint/js": "^9.39.0",
     "@types/node": "^24.10.0",
     "eslint": "^9.39.0",
@@ -34,6 +45,7 @@
     "prettier": "^3.6.2",
     "tsx": "^4.23.13",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.47.0"
+    "typescript-eslint": "^8.47.0",
+    "wrangler": "^4.135.0"
   }
 }

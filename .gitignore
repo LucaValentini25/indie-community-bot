@@ -7,6 +7,9 @@ dist/
 # Secrets — never commit these
 .env
 .env.*
+# `.env-prod.env` slipped past the two rules above once: a dash is not a dot.
+.env-*
+*.env
 !.env.example
 
 # Runtime data (SQLite database lives here)
@@ -35,3 +38,8 @@ preview/
 *.db
 *.db-shm
 *.db-wal
+
+# Cloudflare Worker: local secrets, local D1 state and build output
+.dev.vars
+.wrangler/
+worker/.build/
